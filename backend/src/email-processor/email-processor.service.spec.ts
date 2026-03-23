@@ -5,6 +5,7 @@ import { EmailProcessorService } from './email-processor.service';
 import { ImapService } from '../imap/imap.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelegramService } from '../telegram/telegram.service';
 import { ParsedEmail } from '../imap/parsed-email.interface';
 
 const TEST_APP_SECRET =
@@ -41,7 +42,7 @@ describe('EmailProcessorService', () => {
     mockPrisma = {
       email: {
         findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'test-id' }),
       },
     };
 
@@ -51,6 +52,14 @@ describe('EmailProcessorService', () => {
         CryptoService,
         { provide: ImapService, useValue: mockImapService },
         { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: TelegramService,
+          useValue: {
+            isConfigured: jest.fn().mockReturnValue(false),
+            sendEmailAlert: jest.fn().mockResolvedValue(undefined),
+            sendStatusMessage: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         {
           provide: ConfigService,
           useValue: {

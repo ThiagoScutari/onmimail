@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -6,6 +5,7 @@ import { ImapService } from '../imap/imap.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ParsedEmail } from '../imap/parsed-email.interface';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class EmailProcessorService {
@@ -16,6 +16,7 @@ export class EmailProcessorService {
     private readonly cryptoService: CryptoService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly telegramService: TelegramService,
   ) {}
 
   async processNewEmails(since: Date, senders: string[]): Promise<number> {
@@ -34,7 +35,7 @@ export class EmailProcessorService {
 
       const encryptedData = this.encryptEmailFields(email);
 
-      await this.prisma.email.create({
+      const saved = await this.prisma.email.create({
         data: {
           messageId: email.messageId,
           from_enc: new Uint8Array(encryptedData.from.encrypted),
@@ -56,6 +57,22 @@ export class EmailProcessorService {
 
       processedCount++;
       this.logger.log(`E-mail processado: ${email.messageId}`);
+
+      // Notificação Telegram (usa dados em texto puro da memória, não do BD)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      if (this.telegramService.isConfigured()) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          await this.telegramService.sendEmailAlert({
+            from: email.from,
+            subject: email.subject,
+            date: email.date.toISOString(),
+            emailId: saved.id,
+          });
+        } catch (err) {
+          this.logger.error(`Falha ao enviar alerta Telegram: ${err}`);
+        }
+      }
     }
 
     return processedCount;
