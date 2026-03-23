@@ -1,19 +1,51 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { randomBytes } from 'crypto';
+import { ConfigModule } from '@nestjs/config';
+import * as Joi from 'joi';
+import { AppController } from '../src/app.controller';
+import { AppService } from '../src/app.service';
+import { PrismaModule } from '../src/prisma/prisma.module';
+import { PrismaService } from '../src/prisma/prisma.service';
+
+const TEST_JWT_SECRET = randomBytes(32).toString('hex');
+const TEST_APP_SECRET = randomBytes(32).toString('hex');
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          validationSchema: Joi.object({
+            DATABASE_URL: Joi.string().default(
+              'postgresql://test:test@localhost:5432/test',
+            ),
+            JWT_SECRET: Joi.string().default(TEST_JWT_SECRET),
+            APP_SECRET: Joi.string().default(TEST_APP_SECRET),
+            MONITORED_SENDERS: Joi.string().default(''),
+            FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+          }),
+        }),
+        PrismaModule,
+      ],
+      controllers: [AppController],
+      providers: [AppService],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({ $connect: jest.fn(), $disconnect: jest.fn() })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   it('/ (GET)', () => {
