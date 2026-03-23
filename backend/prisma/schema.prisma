@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Email {
+  id          String      @id @default(uuid())
+  messageId   String      @unique
+  from_enc    Bytes
+  to_enc      Bytes
+  subject_enc Bytes
+  body_enc    Bytes
+  date        DateTime
+  status      EmailStatus @default(UNREAD)
+  iv          String
+  tag         String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum EmailStatus {
+  UNREAD
+  READ
+  RESPONDED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Setting {
+  id        String @id @default(uuid())
+  key       String @unique
+  value_enc Bytes
+  iv        String
+  tag       String
+}
