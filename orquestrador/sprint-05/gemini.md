@@ -86,7 +86,18 @@ Resposta do /status:
 ⏰ Última sincronização: 23/03/2026 14:32
 ```
 
-### 4. TelegramModule
+### 4. Registrar variáveis Telegram no Joi (AppModule)
+Arquivo: `backend/src/app.module.ts`
+
+Adicione as variáveis do Telegram como **opcionais** no validationSchema do ConfigModule:
+```typescript
+TELEGRAM_BOT_TOKEN: Joi.string().optional().default(''),
+TELEGRAM_CHAT_ID: Joi.string().optional().default(''),
+```
+
+**IMPORTANTE:** Devem ser opcionais porque o sistema funciona sem Telegram configurado.
+
+### 5. TelegramModule
 ```
 backend/src/telegram/
 ├── telegram.module.ts
@@ -97,7 +108,9 @@ backend/src/telegram/
 
 Importa: `PrismaModule` (para stats do /status)
 
-### 5. Testes Unitários
+Registre o `TelegramModule` no `AppModule` (imports).
+
+### 6. Testes Unitários
 Arquivo: `backend/src/telegram/telegram.service.spec.ts`
 
 Mocke o `node-telegram-bot-api`:
@@ -109,12 +122,75 @@ Mocke o `node-telegram-bot-api`:
 - [ ] Sem token configurado, `sendEmailAlert` logga warning e não lança exceção
 - [ ] Comando /status retorna estatísticas formatadas
 
+### 7. Tela de Configurações no Frontend
+Arquivo: `frontend/src/pages/SettingsPage.tsx`
+
+Crie uma página `/settings` acessível pelo Header (ícone de engrenagem ou link "Configurações"). Protegida por `PrivateRoute` (mesma lógica do `/dashboard`).
+
+#### Layout da Página
+Seções com cards/formulários:
+
+**Seção 1 — Telegram**
+- Campo `Bot Token` (type=password, nunca exibir o valor completo, mostrar `***CONFIGURED***` se já configurado)
+- Campo `Chat ID` (type=text)
+- Botão **"Enviar Teste"** → chama `POST /settings/telegram/test`
+  - Sucesso: toast/badge verde "Mensagem de teste enviada!"
+  - Falha: toast/badge vermelho com mensagem de erro
+- Botão **"Salvar"** → chama `PUT /settings/telegram_bot_token` e `PUT /settings/telegram_chat_id`
+
+**Seção 2 — Monitoramento**
+- Campo `Remetentes monitorados` (textarea, um por linha)
+- Campo `Intervalo de sincronização` (select: 1h, 2h, 4h, 8h, 12h)
+- Botão **"Salvar"**
+
+**Seção 3 — Conexão IMAP**
+- Campo `Host` (type=text)
+- Campo `Porta` (type=number, default 993)
+- Campo `Usuário/Email` (type=email)
+- Campo `Senha` (type=password, mostrar `***CONFIGURED***` se já configurado)
+- Checkbox `TLS` (default: checked)
+- Botão **"Salvar"**
+
+#### Regras de segurança na UI
+- **NUNCA** exibir tokens/senhas completos. Campos de segredo mostram `***CONFIGURED***` quando já possuem valor
+- Ao salvar um campo de segredo, só enviar se o usuário digitou algo novo (não reenviar `***CONFIGURED***`)
+- Campos de segredo usam `type="password"` com toggle de visibilidade (ícone olho)
+- Feedback visual para cada ação (loading spinner no botão, toast de sucesso/erro)
+
+#### Service
+Arquivo: `frontend/src/services/settingsApi.ts`
+```typescript
+export const settingsApi = {
+  getAll: () => api.get('/settings').then(r => r.data),
+  update: (key: string, value: string) => api.put(`/settings/${key}`, { value }).then(r => r.data),
+  testTelegram: () => api.post('/settings/telegram/test').then(r => r.data),
+};
+```
+
+#### Rota
+Registre no `App.tsx` dentro do `PrivateRoute`:
+```tsx
+<Route path="/settings" element={<SettingsPage />} />
+```
+
+Adicione link no `Header.tsx` (ícone Settings do lucide-react).
+
+#### Testes
+- [ ] Página renderiza com seções Telegram, Monitoramento, IMAP
+- [ ] Campo de token exibe `***CONFIGURED***` quando há valor
+- [ ] Botão "Enviar Teste" chama endpoint correto
+- [ ] Salvar envia PUT para cada campo alterado
+- [ ] Campos vazios não são enviados ao salvar
+
 ## Critérios de Aceite
 - [ ] Bot envia alerta formatado quando chamado
 - [ ] Mensagem contém apenas dados mínimos (sem corpo do email)
 - [ ] Comando /status funciona no Telegram
 - [ ] `isConfigured()` permite verificar se o Telegram está ativo
 - [ ] Serviço não quebra se token não estiver configurado
+- [ ] Tela de configurações funciona e salva dados criptografados
+- [ ] Campos sensíveis nunca exibem valor completo na UI
+- [ ] Botão "Enviar Teste" do Telegram funciona
 - [ ] Todos os testes passam
 
 ## Interface com Claude
