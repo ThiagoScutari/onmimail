@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { RefreshCcw, LogOut } from 'lucide-react';
+import { RefreshCcw, LogOut, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { emailApi } from '../services/emailApi';
 
@@ -44,7 +45,13 @@ export const Header: React.FC = () => {
           <RefreshCcw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
         </button>
-        <div className="h-6 w-px bg-slate-200 mx-2" />
+        <Link
+          to="/settings"
+          className="flex items-center justify-center p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+        >
+          <Settings className="w-5 h-5" />
+        </Link>
+        <div className="h-6 w-px bg-slate-200 mx-1" />
         <button
           onClick={logout}
           className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors"
