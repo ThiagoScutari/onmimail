@@ -24,7 +24,28 @@ export interface TelegramNotification {
 
 ## Sua Entrega
 
-### 1. Integrar Notificação no EmailProcessor
+### 1. Integrar TelegramModule no EmailProcessorModule
+Arquivo: `backend/src/email-processor/email-processor.module.ts`
+
+O module atual só importa `ImapModule`. Adicione `TelegramModule` nos imports:
+```typescript
+imports: [ImapModule, TelegramModule],
+```
+
+Arquivo: `backend/src/email-processor/email-processor.service.ts`
+
+Injete `TelegramService` no construtor:
+```typescript
+constructor(
+  private readonly imapService: ImapService,
+  private readonly cryptoService: CryptoService,
+  private readonly prisma: PrismaService,
+  private readonly configService: ConfigService,
+  private readonly telegramService: TelegramService,  // NOVO
+) {}
+```
+
+### 2. Integrar Notificação no EmailProcessor
 Arquivo: `backend/src/email-processor/email-processor.service.ts`
 
 Modifique `processNewEmails()` para notificar após salvar:
@@ -60,7 +81,7 @@ async processNewEmails(since: Date, senders: string[]): Promise<number> {
 
 **IMPORTANTE:** A notificação usa os dados em texto puro (antes da criptografia), pois já estão em memória. Nunca descriptografe do BD só para notificar.
 
-### 2. SettingsController
+### 3. SettingsController
 Arquivo: `backend/src/settings/settings.controller.ts`
 
 Rotas protegidas com JWT:
@@ -69,13 +90,25 @@ Rotas protegidas com JWT:
 Retorna configurações descriptografadas:
 ```json
 {
-  "telegram_bot_token": "***CONFIGURED***",  // nunca expor token completo
+  "telegram_bot_token": "***CONFIGURED***",
   "telegram_chat_id": "123456789",
   "monitored_senders": "contabiletica@hotmail.com",
-  "sync_interval_hours": 4
+  "sync_interval_hours": "4",
+  "imap_host": "outlook.office365.com",
+  "imap_port": "993",
+  "imap_user": "***CONFIGURED***",
+  "imap_password": "***CONFIGURED***",
+  "imap_tls": "true"
 }
 ```
 **Nota:** Tokens/segredos retornam mascarados (`***CONFIGURED***` ou últimos 4 chars).
+
+**Chaves sensíveis que devem ser mascaradas:**
+- `telegram_bot_token`
+- `imap_user`
+- `imap_password`
+
+As demais retornam o valor real descriptografado.
 
 #### PUT /settings/:key
 Atualiza uma configuração:
@@ -99,7 +132,7 @@ Envia uma mensagem de teste para validar a configuração:
 { "success": false, "message": "Telegram não configurado" }
 ```
 
-### 3. SettingsService
+### 4. SettingsService
 Arquivo: `backend/src/settings/settings.service.ts`
 
 Métodos:
@@ -108,7 +141,7 @@ Métodos:
 - `set(key: string, value: string)`: criptografa e salva (upsert)
 - `testTelegram()`: chama `telegramService.sendStatusMessage("Teste de configuração")"`
 
-### 4. SettingsModule
+### 5. SettingsModule
 ```
 backend/src/settings/
 ├── settings.module.ts
@@ -120,7 +153,7 @@ backend/src/settings/
 
 Importa: `CryptoModule`, `TelegramModule`, `PrismaModule`
 
-### 5. Seed de Configurações Iniciais
+### 6. Seed de Configurações Iniciais
 Arquivo: `backend/prisma/seed.ts`
 
 Crie um seed que popula as settings iniciais a partir do `.env`:
@@ -137,7 +170,12 @@ Configure no `package.json`:
 }
 ```
 
-### 6. Testes
+### 7. Registrar SettingsModule no AppModule
+Arquivo: `backend/src/app.module.ts`
+
+Adicione `SettingsModule` nos imports do AppModule.
+
+### 8. Testes
 Arquivo: `backend/src/settings/settings.service.spec.ts`
 - [ ] `set()` criptografa o valor antes de salvar
 - [ ] `get()` descriptografa o valor ao retornar

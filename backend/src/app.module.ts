@@ -10,6 +10,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailProcessorModule } from './email-processor/email-processor.module';
 import { EmailsModule } from './emails/emails.module';
+import { SettingsModule } from './settings/settings.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { EmailsModule } from './emails/emails.module';
         APP_SECRET: Joi.string().hex().length(64).required(),
         MONITORED_SENDERS: Joi.string().default(''),
         FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+        TELEGRAM_BOT_TOKEN: Joi.string().optional().allow('').default(''),
+        TELEGRAM_CHAT_ID: Joi.string().optional().allow('').default(''),
       }),
     }),
     ScheduleModule.forRoot(),
@@ -35,6 +39,8 @@ import { EmailsModule } from './emails/emails.module';
     AuthModule,
     EmailProcessorModule,
     EmailsModule,
+    SettingsModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],
