@@ -7,19 +7,69 @@ Sprint 4 do Omnimail (Scutari & Co). API backend completa e segura (Sprints 1-3)
 - API funcionando: GET /emails, GET /emails/:id, PATCH /emails/:id/status, POST /auth/login
 - Claude vai entregar AuthContext e PrivateRoute — você consome
 
+## ⚠️ REGRAS DE QUALIDADE OBRIGATÓRIAS
+
+### ESLint/TypeScript
+O projeto raiz já tem `lint-staged` configurado com pattern `frontend/**/*.{ts,tsx}`. Seu código será validado no commit.
+
+**Antes de declarar concluído, rode:**
+```bash
+cd frontend
+npx eslint src/ --ext .ts,.tsx
+npx tsc --noEmit
+```
+
+### Sem segredos hardcoded
+Gitleaks roda no pre-commit. Não coloque URLs de API ou tokens no código — use variáveis de ambiente (`VITE_API_URL`).
+
+## Estado Atual do Backend (referência)
+
+### Endpoints disponíveis:
+| Método | Rota | Auth | Response |
+|--------|------|------|----------|
+| POST | /auth/login | Não | `{ accessToken: string, refreshToken: string }` |
+| POST | /auth/refresh | Não | `{ accessToken: string, refreshToken: string }` |
+| GET | /emails | JWT | `{ data: Email[], meta: { total, page, limit, totalPages } }` |
+| GET | /emails/:id | JWT | `EmailDetail` (com body descriptografado) |
+| PATCH | /emails/:id/status | JWT | `{ id, status, updatedAt }` |
+| POST | /emails/sync | JWT | `{ processed: number, message: string }` |
+
+### Campos do Email (já descriptografados pelo backend):
+```typescript
+// Na listagem (GET /emails)
+{ id, from, subject, date, status, hasAttachments, createdAt }
+
+// No detalhe (GET /emails/:id)
+{ id, from, to, subject, body, date, status, hasAttachments, createdAt }
+```
+
+### Swagger:
+Documentação completa em `http://localhost:3000/api/docs`
+
 ## Sua Entrega
 
 ### 1. React Project Init
 Inicialize em `frontend/`:
 ```bash
-npm create vite@latest frontend -- --template react-ts
 cd frontend
+npm create vite@latest . -- --template react-ts
 npm install
 npm install axios react-router-dom @tanstack/react-query
 npm install -D tailwindcss @tailwindcss/vite
 ```
 
-Configure TailwindCSS com o plugin Vite.
+**NOTA:** Use `.` (ponto) para criar no diretório atual, não crie uma subpasta.
+
+Configure TailwindCSS com o plugin Vite no `vite.config.ts`:
+```typescript
+import tailwindcss from '@tailwindcss/vite';
+// adicione tailwindcss() no array plugins
+```
+
+No `src/index.css`:
+```css
+@import "tailwindcss";
+```
 
 ### 2. Estrutura de Pastas
 ```
@@ -40,7 +90,8 @@ frontend/src/
 │   ├── useEmails.ts
 │   └── useEmailDetail.ts
 ├── services/
-│   └── api.ts              # Claude configura com interceptor JWT
+│   ├── api.ts              # Claude entrega — configura com interceptor JWT
+│   └── emailApi.ts         # Claude entrega — funções de chamada à API
 ├── contexts/
 │   └── AuthContext.tsx      # Claude entrega
 ├── types/
@@ -86,11 +137,13 @@ Arquivo: `frontend/src/hooks/useEmails.ts`
 // useEmails(page, limit, status?) → PaginatedResponse<Email>
 // Usa @tanstack/react-query para cache e refetch automático
 // Refetch a cada 5 minutos
+// Importa emailApi de '../services/emailApi'
 ```
 
 Arquivo: `frontend/src/hooks/useEmailDetail.ts`
 ```typescript
 // useEmailDetail(id) → EmailDetail
+// Importa emailApi de '../services/emailApi'
 ```
 
 ### 5. Componentes
@@ -116,6 +169,7 @@ Arquivo: `frontend/src/hooks/useEmailDetail.ts`
 - Exibe: remetente, destinatário, assunto, data, corpo completo
 - Botões: "Marcar como Lido", "Marcar como Respondido"
 - Ao abrir, automaticamente muda status para READ via PATCH
+- Usa `emailApi.updateStatus()` do Claude
 
 #### Pagination
 - Navegação: Anterior | Página X de Y | Próxima
@@ -124,8 +178,8 @@ Arquivo: `frontend/src/hooks/useEmailDetail.ts`
 #### Header
 - Logo/título "Omnimail"
 - Última sincronização (horário)
-- Botão "Sincronizar agora" (chama POST /emails/sync)
-- Botão de logout
+- Botão "Sincronizar agora" (chama `emailApi.syncEmails()`)
+- Botão de logout (chama `useAuth().logout()`)
 
 #### Layout
 - Header fixo no topo
@@ -160,14 +214,25 @@ Página 404 simples com link para dashboard.
 - [ ] Paginação funciona
 - [ ] Responsivo em mobile e desktop
 - [ ] Botão "Sincronizar agora" funciona
+- [ ] **ESLint + TypeScript passam sem erros**
 
 ## Interface com Claude
 Claude entrega:
-- `AuthContext` com `login()`, `logout()`, `isAuthenticated`, `token`
+- `AuthContext` com `useAuth()` → `{ user, isAuthenticated, isLoading, login, logout }`
 - `PrivateRoute` que redireciona para /login se não autenticado
 - `api.ts` com axios configurado (baseURL, interceptor JWT, refresh automático)
+- `emailApi.ts` com funções: `getEmails()`, `getEmailById()`, `updateStatus()`, `syncEmails()`
+- `LoginPage.tsx`
 
-Você consome esses módulos. Use `useAuth()` do AuthContext para verificar autenticação e obter o token.
+Você consome esses módulos. **Não crie arquivos que são responsabilidade do Claude** (api.ts, AuthContext, LoginPage, PrivateRoute, emailApi.ts).
+
+Se precisar deles antes do Claude entregar, crie stubs temporários:
+```typescript
+// stub temporário para api.ts
+import axios from 'axios';
+const api = axios.create({ baseURL: 'http://localhost:3000' });
+export default api;
+```
 
 ## Branch
 Trabalhe na branch: `gemini/sprint-04`
