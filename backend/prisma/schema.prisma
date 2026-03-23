@@ -7,18 +7,25 @@ datasource db {
 }
 
 model Email {
-  id          String      @id @default(uuid())
-  messageId   String      @unique
-  from_enc    Bytes
-  to_enc      Bytes
-  subject_enc Bytes
-  body_enc    Bytes
-  date        DateTime
-  status      EmailStatus @default(UNREAD)
-  iv          String
-  tag         String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id             String      @id @default(uuid())
+  messageId      String      @unique
+  from_enc       Bytes
+  from_iv        String
+  from_tag       String
+  to_enc         Bytes
+  to_iv          String
+  to_tag          String
+  subject_enc    Bytes
+  subject_iv     String
+  subject_tag    String
+  body_enc       Bytes
+  body_iv        String
+  body_tag       String
+  date           DateTime
+  status         EmailStatus @default(UNREAD)
+  hasAttachments Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
 
 enum EmailStatus {
