@@ -7,10 +7,55 @@ Sprint 3 do Omnimail (Scutari & Co). Backend funcional com e-mails criptografado
 - Sprints 1-2 completas (JWT Auth, CryptoService, emails no BD)
 - Gemini está criando o `EmailsController` com rotas GET/PATCH
 
+## ⚠️ REGRAS DE QUALIDADE OBRIGATÓRIAS
+
+Estas regras são baseadas em problemas reais encontrados nas Sprints anteriores. **Siga rigorosamente.**
+
+### ESLint Strict Mode
+O projeto usa ESLint com regras TypeScript strict. Seu código DEVE passar no ESLint sem erros antes da entrega.
+
+**Como validar antes de entregar:**
+```bash
+cd backend
+npx eslint src/crypto/decrypt.interceptor.ts --ext .ts
+npx eslint test/security.e2e-spec.ts test/emails.e2e-spec.ts --ext .ts
+```
+
+Se PRECISAR desabilitar uma regra em arquivos de teste (`.spec.ts` / `.e2e-spec.ts`), use um eslint-disable no topo do arquivo com as regras específicas:
+```typescript
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+```
+**Nunca desabilite regras em código de produção sem justificativa.**
+
+### Gitleaks
+O pre-commit hook roda Gitleaks. **Não coloque chaves, tokens ou segredos no código.** Para testes que precisam de APP_SECRET, use uma variável gerada no setup do teste (ex: `crypto.randomBytes(32).toString('hex')`), NÃO uma string hardcoded.
+
+### Prettier
+O lint-staged roda Prettier automaticamente no commit.
+
+## Estado Atual do Código (referência)
+
+### Módulos existentes:
+- `CryptoService` — `src/crypto/crypto.service.ts`
+  - `encrypt(plaintext: string): { encrypted: Buffer, iv: string, tag: string }`
+  - `decrypt(encrypted: Buffer, iv: string, tag: string): string`
+- `JwtAuthGuard` — `src/auth/jwt-auth.guard.ts` (extends AuthGuard('jwt'))
+- `JwtStrategy` — `src/auth/jwt.strategy.ts` (extrai Bearer token de Authorization header)
+- `AuthService` — `src/auth/auth.service.ts` (login, refresh)
+- `PrismaService` — `src/prisma/prisma.service.ts`
+
+### Schema Prisma atual (campos criptografados do Email):
+```
+from_enc (Bytes) + from_iv (String) + from_tag (String)
+to_enc (Bytes) + to_iv (String) + to_tag (String)
+subject_enc (Bytes) + subject_iv (String) + subject_tag (String)
+body_enc (Bytes) + body_iv (String) + body_tag (String)
+```
+
 ## Sua Entrega
 
 ### 1. Garantir que JwtAuthGuard está funcional
-O `JwtAuthGuard` já foi criado na Sprint 1. Verifique que:
+O `JwtAuthGuard` já foi criado na Sprint 1 em `src/auth/jwt-auth.guard.ts`. Verifique que:
 - Extrai o Bearer Token do header `Authorization`
 - Valida assinatura e expiração
 - Injeta o payload do JWT no `request.user`
@@ -84,7 +129,12 @@ export class DecryptInterceptor implements NestInterceptor {
 }
 ```
 
-Aplique globalmente nas rotas de emails ou via `@UseInterceptors(DecryptInterceptor)` no controller.
+**NOTA:** O `DecryptInterceptor` usa `any` por necessidade (dados dinâmicos do Prisma). Use `eslint-disable` cirúrgico APENAS para este arquivo se necessário, com comentário explicando:
+```typescript
+// eslint-disable-next-line @typescript-eslint/no-unsafe-... — Prisma retorna dados dinâmicos
+```
+
+Exporte o `DecryptInterceptor` do `CryptoModule` para que o Gemini possa usá-lo no controller.
 
 ### 3. Rate Limiting
 Instale: `npm install @nestjs/throttler`
@@ -97,13 +147,16 @@ ThrottlerModule.forRoot([{
 }])
 ```
 
-Aplique `@UseGuards(ThrottlerGuard)` no controller de emails.
+Registre no `AppModule` (imports).
+Aplique `@UseGuards(ThrottlerGuard)` no controller de emails (ou instrua o Gemini a fazer).
 
 ### 4. Helmet & CORS
 Instale: `npm install helmet`
 
-No `main.ts`:
+No `main.ts` (adicione ANTES da configuração Swagger que o Gemini vai adicionar):
 ```typescript
+import helmet from 'helmet';
+
 app.use(helmet());
 app.enableCors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -111,9 +164,14 @@ app.enableCors({
 });
 ```
 
-Adicione ao `.env.example`:
+Adicione ao `backend/.env.example`:
 ```env
 FRONTEND_URL=http://localhost:5173
+```
+
+E ao Joi validation no `AppModule`:
+```typescript
+FRONTEND_URL: Joi.string().default('http://localhost:5173'),
 ```
 
 ### 5. Testes de Segurança
@@ -154,6 +212,11 @@ Fluxo completo:
 6. PATCH /emails/:id/status → atualiza para READ
 7. GET /emails?status=READ → filtra corretamente
 
+**ATENÇÃO:** Os testes E2E podem depender do banco real (PostgreSQL). Se o banco não estiver disponível, use mocks consistentes. Para APP_SECRET nos testes, gere dinamicamente:
+```typescript
+const TEST_APP_SECRET = require('crypto').randomBytes(32).toString('hex');
+```
+
 ## Critérios de Aceite
 - [ ] Todas as rotas protegidas com JWT retornam 401 sem token
 - [ ] DecryptInterceptor descriptografa transparentemente
@@ -161,18 +224,21 @@ Fluxo completo:
 - [ ] Rate limiting funciona (429 após exceder limite)
 - [ ] CORS configurado para o frontend
 - [ ] Helmet ativo (headers de segurança)
+- [ ] **ESLint passa sem erros** nos arquivos criados
 - [ ] Todos os testes E2E e de segurança passam
 
 ## Ordem de Execução
 1. Verifique e ajuste JwtAuthGuard
-2. Implemente DecryptInterceptor
+2. Implemente DecryptInterceptor + exporte do CryptoModule
 3. Configure Throttler + Helmet + CORS
 4. Escreva testes de segurança
 5. Escreva testes E2E
-6. Valide com curl/Postman que tudo funciona
+6. Rode `npx eslint` nos seus arquivos antes de declarar concluído
 
 ## Interface com Gemini
 Gemini cria o `EmailsController` e `EmailsService`. O service retorna dados criptografados do Prisma. Seu `DecryptInterceptor` transforma esses dados antes do response. Gemini aplica `@UseGuards(JwtAuthGuard)` e `@UseInterceptors(DecryptInterceptor)` nas rotas.
+
+**Não altere arquivos do Gemini:** `src/emails/` é dele. Você trabalha em `src/crypto/decrypt.interceptor.ts`, `src/auth/`, `test/`, e `main.ts`.
 
 ## Branch
 Trabalhe na branch: `claude/sprint-03`
