@@ -6,6 +6,75 @@ Sprint 3 do Omnimail (Scutari & Co). Backend funcional com IMAP worker salvando 
 ## Pré-requisito
 - Sprints 1-2 completas (emails no BD, CryptoService, JWT Auth)
 
+## ⚠️ REGRAS DE QUALIDADE OBRIGATÓRIAS
+
+Estas regras são baseadas em problemas reais encontrados nas Sprints anteriores. **Siga rigorosamente.**
+
+### ESLint Strict Mode
+O projeto usa ESLint com regras TypeScript strict (`@typescript-eslint/strict`). Seu código DEVE passar no ESLint sem erros antes da entrega.
+
+**Regras mais comuns que quebraram na Sprint 2:**
+- `@typescript-eslint/no-unsafe-assignment` — Não use `any` implícito
+- `@typescript-eslint/no-unsafe-member-access` — Não acesse propriedades de `any`
+- `@typescript-eslint/no-unsafe-call` — Não chame funções `any`
+- `@typescript-eslint/no-require-imports` — Use `import`, não `require()`
+- `@typescript-eslint/no-misused-promises` — Não passe async callbacks onde void é esperado
+
+**Como validar antes de entregar:**
+```bash
+cd backend
+npx eslint src/emails/ --ext .ts
+```
+
+Se PRECISAR desabilitar uma regra em arquivos de teste (`.spec.ts`), use um eslint-disable no topo do arquivo com as regras específicas. **Nunca desabilite regras em código de produção sem justificativa.**
+
+### Gitleaks
+O pre-commit hook roda Gitleaks. **Não coloque chaves, tokens ou segredos** no código, nem mesmo de teste. Use variáveis de ambiente ou mocks.
+
+### Prettier
+O lint-staged roda Prettier automaticamente. Não se preocupe com formatação, mas se quiser validar: `npx prettier --check "src/emails/**/*.ts"`
+
+## Estado Atual do Código (referência)
+
+### Módulos existentes que você pode importar:
+- `PrismaModule` / `PrismaService` — `../prisma/prisma.module` / `../prisma/prisma.service`
+- `CryptoModule` / `CryptoService` — `../crypto/crypto.module` / `../crypto/crypto.service`
+- `JwtAuthGuard` — `../auth/jwt-auth.guard` (já existe da Sprint 1)
+- `DecryptInterceptor` — `../crypto/decrypt.interceptor` (Claude vai criar nesta Sprint)
+
+### Schema Prisma atual (campos do model Email):
+```prisma
+model Email {
+  id             String      @id @default(uuid())
+  messageId      String      @unique
+  from_enc       Bytes
+  from_iv        String
+  from_tag       String
+  to_enc         Bytes
+  to_iv          String
+  to_tag         String
+  subject_enc    Bytes
+  subject_iv     String
+  subject_tag    String
+  body_enc       Bytes
+  body_iv        String
+  body_tag       String
+  date           DateTime
+  status         EmailStatus @default(UNREAD)
+  hasAttachments Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+enum EmailStatus {
+  UNREAD
+  READ
+  RESPONDED
+}
+```
+
+**IMPORTANTE:** Os campos `*_enc` são do tipo `Bytes` (Buffer). O `EmailsService` retorna esses dados brutos. O `DecryptInterceptor` do Claude transforma `from_enc`+`from_iv`+`from_tag` em `from: string` antes do response. **Não faça decrypt no service.**
+
 ## Sua Entrega
 
 ### 1. EmailsController
@@ -50,7 +119,9 @@ Response 200: { id: string, status: string, updatedAt: string }
 Response 404: { message: "Email not found" }
 ```
 
-**IMPORTANTE:** Todas as rotas devem ter `@UseGuards(JwtAuthGuard)` — Claude vai implementar o guard. Você aplica o decorator.
+**Decorators obrigatórios em TODAS as rotas:**
+- `@UseGuards(JwtAuthGuard)` — importar de `../auth/jwt-auth.guard`
+- `@UseInterceptors(DecryptInterceptor)` — importar de `../crypto/decrypt.interceptor` (nas rotas GET que retornam dados de e-mail)
 
 ### 2. DTOs
 Arquivo: `backend/src/emails/dto/`
@@ -123,7 +194,7 @@ Métodos:
 - `findOne(id: string)` — busca por ID
 - `updateStatus(id: string, status: EmailStatus)` — atualiza status
 
-**NOTA:** Os dados retornados do Prisma estarão criptografados (Bytes). O `DecryptInterceptor` do Claude vai descriptografar antes de enviar ao client. O service retorna os dados brutos.
+**NOTA:** Os dados retornados do Prisma estarão criptografados (Bytes). O `DecryptInterceptor` do Claude vai descriptografar antes de enviar ao client. O service retorna os dados brutos do Prisma.
 
 ### 4. Swagger/OpenAPI
 Instale: `npm install @nestjs/swagger`
@@ -152,6 +223,7 @@ backend/src/emails/
 ├── emails.module.ts
 ├── emails.controller.ts
 ├── emails.service.ts
+├── emails.controller.spec.ts
 └── dto/
     ├── email-response.dto.ts
     ├── email-detail.dto.ts
@@ -160,6 +232,7 @@ backend/src/emails/
 ```
 
 Importa: `PrismaModule`
+Registre o `EmailsModule` no `AppModule` (imports array).
 
 ### 6. Testes
 Arquivo: `backend/src/emails/emails.controller.spec.ts`
@@ -177,14 +250,20 @@ Arquivo: `backend/src/emails/emails.controller.spec.ts`
 - [ ] PATCH /emails/:id/status atualiza status
 - [ ] Swagger acessível em /api/docs
 - [ ] Todos os DTOs têm validação com class-validator
+- [ ] **ESLint passa sem erros** em `src/emails/`
 - [ ] Testes passam
 
 ## Interface com Claude
-Claude implementa:
-- `JwtAuthGuard` que você aplica com `@UseGuards(JwtAuthGuard)`
-- `DecryptInterceptor` que descriptografa os campos `*_enc` antes do response
+Claude implementa nesta Sprint:
+- `DecryptInterceptor` em `../crypto/decrypt.interceptor.ts` — transforma `*_enc` fields em strings legíveis
+- Rate Limiting (`@nestjs/throttler`)
+- Helmet + CORS
 
-Os dados do Prisma vêm com campos `from_enc` (Bytes), `from_iv`, `from_tag`, etc. O interceptor transforma em `from` (string). **Não faça decrypt no service — deixe para o interceptor.**
+Você aplica nos seus controllers:
+- `@UseGuards(JwtAuthGuard)` — import de `../auth/jwt-auth.guard`
+- `@UseInterceptors(DecryptInterceptor)` — import de `../crypto/decrypt.interceptor` (nas rotas GET)
+
+**Não altere arquivos fora da pasta `src/emails/` e `main.ts` (Swagger).**
 
 ## Branch
 Trabalhe na branch: `gemini/sprint-03`
