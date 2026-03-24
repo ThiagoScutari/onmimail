@@ -2,9 +2,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as Joi from 'joi';
@@ -20,12 +19,14 @@ import { SettingsModule } from '../src/settings/settings.module';
 import { TelegramModule } from '../src/telegram/telegram.module';
 import { TelegramService } from '../src/telegram/telegram.service';
 
-const TEST_JWT_SECRET = randomBytes(32).toString('hex');
-const TEST_APP_SECRET = randomBytes(32).toString('hex');
+const TEST_JWT_SECRET = 'test-jwt-secret-for-e2e-testing-only-1234567890abcdef';
+const TEST_APP_SECRET =
+  'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
 
 describe('Security (e2e)', () => {
   let app: INestApplication;
   let jwtService: JwtService;
+  let jwtSecret: string;
   let prisma: Record<string, any>;
 
   const mockEncryptedEmail = {
@@ -142,6 +143,8 @@ describe('Security (e2e)', () => {
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
+    const configService = moduleFixture.get<ConfigService>(ConfigService);
+    jwtSecret = configService.get<string>('JWT_SECRET')!;
   });
 
   afterAll(async () => {
@@ -151,14 +154,14 @@ describe('Security (e2e)', () => {
   function generateValidToken(): string {
     return jwtService.sign(
       { sub: 'user-123', email: 'test@example.com' },
-      { secret: TEST_JWT_SECRET, expiresIn: '15m' },
+      { secret: jwtSecret, expiresIn: '15m' },
     );
   }
 
   function generateExpiredToken(): string {
     return jwtService.sign(
       { sub: 'user-123', email: 'test@example.com' },
-      { secret: TEST_JWT_SECRET, expiresIn: '0s' },
+      { secret: jwtSecret, expiresIn: '0s' },
     );
   }
 

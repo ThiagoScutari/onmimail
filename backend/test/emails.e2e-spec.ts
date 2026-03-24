@@ -2,9 +2,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { CryptoService } from '../src/crypto/crypto.service';
 import { CryptoModule } from '../src/crypto/crypto.module';
@@ -15,19 +14,21 @@ import { EmailsModule } from '../src/emails/emails.module';
 import { EmailProcessorModule } from '../src/email-processor/email-processor.module';
 import { ImapService } from '../src/imap/imap.service';
 
-const TEST_JWT_SECRET = randomBytes(32).toString('hex');
-const TEST_APP_SECRET = randomBytes(32).toString('hex');
+const TEST_JWT_SECRET = 'test-jwt-secret-for-e2e-testing-only-1234567890abcdef';
+const TEST_APP_SECRET =
+  'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
 
 describe('Emails E2E', () => {
   let app: INestApplication;
   let jwtService: JwtService;
   let cryptoService: CryptoService;
   let prisma: Record<string, any>;
+  let jwtSecret: string;
 
   function generateToken(): string {
     return jwtService.sign(
       { sub: 'user-123', email: 'test@example.com' },
-      { secret: TEST_JWT_SECRET, expiresIn: '15m' },
+      { secret: jwtSecret, expiresIn: '15m' },
     );
   }
 
@@ -143,6 +144,8 @@ describe('Emails E2E', () => {
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
     cryptoService = moduleFixture.get<CryptoService>(CryptoService);
+    const configService = moduleFixture.get<ConfigService>(ConfigService);
+    jwtSecret = configService.get<string>('JWT_SECRET')!;
   });
 
   afterAll(async () => {

@@ -2,9 +2,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { CryptoModule } from '../src/crypto/crypto.module';
 import { AuthModule } from '../src/auth/auth.module';
@@ -15,13 +14,15 @@ import { EmailProcessorModule } from '../src/email-processor/email-processor.mod
 import { ImapService } from '../src/imap/imap.service';
 import { TelegramService } from '../src/telegram/telegram.service';
 
-const TEST_JWT_SECRET = randomBytes(32).toString('hex');
-const TEST_APP_SECRET = randomBytes(32).toString('hex');
+const TEST_JWT_SECRET = 'test-jwt-secret-for-e2e-testing-only-1234567890abcdef';
+const TEST_APP_SECRET =
+  'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899';
 
 describe('Notification & Settings (e2e)', () => {
   let app: INestApplication;
   let jwtService: JwtService;
   let prisma: Record<string, any>;
+  let jwtSecret: string;
   let mockTelegram: {
     isConfigured: jest.Mock;
     sendEmailAlert: jest.Mock;
@@ -32,7 +33,7 @@ describe('Notification & Settings (e2e)', () => {
   function generateToken(): string {
     return jwtService.sign(
       { sub: 'user-123', email: 'test@example.com' },
-      { secret: TEST_JWT_SECRET, expiresIn: '15m' },
+      { secret: jwtSecret, expiresIn: '15m' },
     );
   }
 
@@ -130,6 +131,8 @@ describe('Notification & Settings (e2e)', () => {
     await app.init();
 
     jwtService = moduleFixture.get<JwtService>(JwtService);
+    const configService = moduleFixture.get<ConfigService>(ConfigService);
+    jwtSecret = configService.get<string>('JWT_SECRET')!;
   });
 
   afterAll(async () => {
