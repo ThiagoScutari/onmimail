@@ -70,14 +70,17 @@ describe('Flow E2E', () => {
             DATABASE_URL: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default('postgresql://test:test@localhost:5432/test'),
             JWT_SECRET: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default('e2e-jwt-secret-123'),
             APP_SECRET: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default(
                 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
               ),

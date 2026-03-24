@@ -79,14 +79,17 @@ describe('Security (e2e)', () => {
             DATABASE_URL: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default('postgresql://test:test@localhost:5432/test'),
             JWT_SECRET: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default(TEST_JWT_SECRET),
             APP_SECRET: Joi.string()
               .optional()
               .allow('')
+              .empty('')
               .default(TEST_APP_SECRET),
             MONITORED_SENDERS: Joi.string().optional().allow('').default(''),
             FRONTEND_URL: Joi.string()
