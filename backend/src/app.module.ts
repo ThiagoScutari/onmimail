@@ -12,6 +12,7 @@ import { EmailProcessorModule } from './email-processor/email-processor.module';
 import { EmailsModule } from './emails/emails.module';
 import { SettingsModule } from './settings/settings.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TelegramModule } from './telegram/telegram.module';
     EmailsModule,
     SettingsModule,
     TelegramModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
