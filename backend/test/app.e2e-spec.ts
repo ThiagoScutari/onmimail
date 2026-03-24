@@ -25,9 +25,16 @@ describe('AppController (e2e)', () => {
           validationSchema: Joi.object({
             DATABASE_URL: Joi.string()
               .optional()
+              .allow('')
               .default('postgresql://test:test@localhost:5432/test'),
-            JWT_SECRET: Joi.string().optional().default(TEST_JWT_SECRET),
-            APP_SECRET: Joi.string().optional().default(TEST_APP_SECRET),
+            JWT_SECRET: Joi.string()
+              .optional()
+              .allow('')
+              .default(TEST_JWT_SECRET),
+            APP_SECRET: Joi.string()
+              .optional()
+              .allow('')
+              .default(TEST_APP_SECRET),
             MONITORED_SENDERS: Joi.string().optional().default(''),
             FRONTEND_URL: Joi.string()
               .optional()

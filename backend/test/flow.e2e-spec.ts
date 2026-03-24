@@ -69,10 +69,15 @@ describe('Flow E2E', () => {
           validationSchema: Joi.object({
             DATABASE_URL: Joi.string()
               .optional()
+              .allow('')
               .default('postgresql://test:test@localhost:5432/test'),
-            JWT_SECRET: Joi.string().optional().default('e2e-jwt-secret-123'),
+            JWT_SECRET: Joi.string()
+              .optional()
+              .allow('')
+              .default('e2e-jwt-secret-123'),
             APP_SECRET: Joi.string()
               .optional()
+              .allow('')
               .default(
                 'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
               ),
