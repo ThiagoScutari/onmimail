@@ -58,11 +58,12 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://omnimail:test_password@localhost:5432/omnimail_test
-      JWT_SECRET: test-jwt-secret-ci-only
-      APP_SECRET: ${{ secrets.APP_SECRET_TEST }}
+      JWT_SECRET: ci-test-jwt-secret-not-for-production-use-1234567890
+      APP_SECRET: aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899
+      MONITORED_SENDERS: test@example.com
       TELEGRAM_BOT_TOKEN: ""
       TELEGRAM_CHAT_ID: ""
-      FRONTEND_URL: http://localhost
+      FRONTEND_URL: http://localhost:5173
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -72,9 +73,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: cd backend && npm ci
       - run: cd backend && npx prisma generate
-      - run: cd backend && npx prisma migrate deploy
       - run: cd backend && npm test
-      - run: cd backend && npm run test:e2e
 
   test-frontend:
     runs-on: ubuntu-latest

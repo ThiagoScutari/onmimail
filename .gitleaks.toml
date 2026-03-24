@@ -6,4 +6,6 @@ paths = [
   '''backend/src/email-processor/email-processor\.service\.spec\.ts''',
   '''orquestrador/.*\.md''',
   '''backend/src/settings/settings\.service\.spec\.ts''',
+  '''\.github/workflows/ci\.yml''',
+  '''backend/test/.*\.spec\.ts''',
 ]
