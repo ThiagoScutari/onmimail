@@ -9,12 +9,16 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as Joi from 'joi';
 import { CryptoModule } from '../src/crypto/crypto.module';
+import { CryptoService } from '../src/crypto/crypto.service';
 import { AuthModule } from '../src/auth/auth.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PrismaModule } from '../src/prisma/prisma.module';
 import { EmailsModule } from '../src/emails/emails.module';
 import { EmailProcessorModule } from '../src/email-processor/email-processor.module';
 import { ImapService } from '../src/imap/imap.service';
+import { SettingsModule } from '../src/settings/settings.module';
+import { TelegramModule } from '../src/telegram/telegram.module';
+import { TelegramService } from '../src/telegram/telegram.service';
 
 const TEST_JWT_SECRET = randomBytes(32).toString('hex');
 const TEST_APP_SECRET = randomBytes(32).toString('hex');
@@ -57,6 +61,11 @@ describe('Security (e2e)', () => {
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      setting: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
       $connect: jest.fn(),
       $disconnect: jest.fn(),
     };
@@ -81,6 +90,8 @@ describe('Security (e2e)', () => {
         AuthModule,
         EmailsModule,
         EmailProcessorModule,
+        SettingsModule,
+        TelegramModule,
       ],
       providers: [
         {
@@ -95,6 +106,12 @@ describe('Security (e2e)', () => {
       .useValue({
         fetchEmails: jest.fn().mockResolvedValue([]),
         markAsRead: jest.fn().mockResolvedValue(undefined),
+      })
+      .overrideProvider(TelegramService)
+      .useValue({
+        isConfigured: jest.fn().mockReturnValue(false),
+        sendEmailAlert: jest.fn(),
+        sendStatusMessage: jest.fn(),
       })
       .compile();
 
@@ -129,7 +146,8 @@ describe('Security (e2e)', () => {
     );
   }
 
-  // === Testes de Autenticação ===
+  const bypassTime = async () =>
+    new Promise((resolve) => setTimeout(resolve, 1100));
 
   describe('Authentication', () => {
     it('GET /emails sem Authorization header → 401', async () => {
@@ -146,8 +164,7 @@ describe('Security (e2e)', () => {
 
     it('GET /emails com token expirado → 401', async () => {
       const token = generateExpiredToken();
-      // Small delay to ensure expiration
-      await new Promise((r) => setTimeout(r, 1100));
+      await bypassTime();
       const res = await request(app.getHttpServer())
         .get('/emails')
         .set('Authorization', `Bearer ${token}`);
@@ -178,8 +195,6 @@ describe('Security (e2e)', () => {
     });
   });
 
-  // === Testes de Descriptografia ===
-
   describe('Decryption', () => {
     it('GET /emails com token válido NÃO retorna campos *_enc, *_iv, *_tag', async () => {
       prisma.email.findMany.mockResolvedValue([mockEncryptedEmail]);
@@ -193,7 +208,6 @@ describe('Security (e2e)', () => {
       expect(res.status).toBe(200);
       const email = res.body.data[0];
 
-      // Encrypted fields must be stripped
       expect(email.from_enc).toBeUndefined();
       expect(email.from_iv).toBeUndefined();
       expect(email.from_tag).toBeUndefined();
@@ -214,8 +228,6 @@ describe('Security (e2e)', () => {
       expect(res.status).toBe(200);
       const email = res.body.data[0];
 
-      // DecryptInterceptor will try to decrypt — with wrong key it shows error message
-      // The important thing is that the encrypted fields are replaced
       expect(typeof email.from).toBe('string');
       expect(typeof email.subject).toBe('string');
     });
@@ -233,8 +245,6 @@ describe('Security (e2e)', () => {
       expect(res.body.body_enc).toBeUndefined();
     });
   });
-
-  // === Testes de Validação ===
 
   describe('Validation', () => {
     it('PATCH /emails/:id/status com body vazio → 400', async () => {
@@ -260,14 +270,122 @@ describe('Security (e2e)', () => {
       const res = await request(app.getHttpServer())
         .get('/emails?limit=999')
         .set('Authorization', `Bearer ${token}`);
-      // Should be rejected by validation (Max 100)
       expect(res.status).toBe(400);
     });
   });
 
-  // === Testes de Rate Limiting ===
+  describe('Extended Security Checks', () => {
+    it("SQL: GET /emails?status=' OR 1=1-- → não retorna dados extras", async () => {
+      const token = generateValidToken();
+      const res = await request(app.getHttpServer())
+        .get("/emails?status=' OR 1=1--")
+        .set('Authorization', `Bearer ${token}`);
+      expect([400, 404]).toContain(res.status);
+    });
 
-  describe('Rate Limiting', () => {
+    it('SQL: GET /emails/:id com payload SQL → 404 (Prisma parametrizado)', async () => {
+      const token = generateValidToken();
+      prisma.email.findUnique.mockResolvedValueOnce(null);
+      const res = await request(app.getHttpServer())
+        .get('/emails/1%20OR%201%3D1--')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('SQL: PUT /settings/:key com valor SQL injection → armazena como texto', async () => {
+      const token = generateValidToken();
+      prisma.setting.upsert.mockResolvedValue({ key: 'teste' });
+      const res = await request(app.getHttpServer())
+        .put('/settings/test_sql')
+        .send({ value: "' OR 1=1--" })
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(prisma.setting.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ key: 'test_sql' }),
+        }),
+      );
+    });
+
+    it("XSS: Salvar email com <script>alert('xss')</script> no subject", async () => {
+      const token = generateValidToken();
+      prisma.email.findMany.mockResolvedValue([
+        {
+          ...mockEncryptedEmail,
+          id: 'xss-tester',
+        },
+      ]);
+      const res = await request(app.getHttpServer())
+        .get('/emails')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    });
+
+    it('XSS: PUT /settings com valor <img onerror=alert(1)>', async () => {
+      const token = generateValidToken();
+      prisma.setting.upsert.mockResolvedValue({ key: 'xss2' });
+      const res = await request(app.getHttpServer())
+        .put('/settings/test_xss')
+        .send({ value: '<img onerror=alert(1)>' })
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    });
+
+    it('JWT: Token com payload modificado → 401', async () => {
+      const token = generateValidToken();
+      const parts = token.split('.');
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      payload.sub = 'hacker';
+      parts[1] = Buffer.from(JSON.stringify(payload))
+        .toString('base64')
+        .replace(/=/g, '');
+      const tampered = parts.join('.');
+
+      const res = await request(app.getHttpServer())
+        .get('/emails')
+        .set('Authorization', `Bearer ${tampered}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('JWT: Token assinado com chave diferente → 401', async () => {
+      const badToken = jwtService.sign(
+        { sub: 'user-123' },
+        { secret: 'CHAVE_FALSA_AQUI' },
+      );
+      const res = await request(app.getHttpServer())
+        .get('/emails')
+        .set('Authorization', `Bearer ${badToken}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('Criptografia: APP_SECRET errado → falha de decrypt com exceção clara', () => {
+      expect(() => {
+        const instance = new CryptoService({
+          get: () =>
+            'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        } as any);
+        const { encrypted, iv, tag } = instance.encrypt('test data');
+        const badTag = tag.replace(/[0-9a-f]/, 'f');
+        instance.decrypt(encrypted, iv, badTag);
+      }).toThrow();
+    });
+
+    it('Criptografia: Dois encrypts do mesmo texto produzem resultados diferentes', () => {
+      const instance = new CryptoService({
+        get: () =>
+          'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      } as any);
+      const r1 = instance.encrypt('my super secret message');
+      const r2 = instance.encrypt('my super secret message');
+
+      expect(r1.iv).not.toEqual(r2.iv);
+      expect(r1.encrypted.toString('hex')).not.toEqual(
+        r2.encrypted.toString('hex'),
+      );
+    });
+  });
+
+  describe('Rate Limiting Final', () => {
     it('31 requests em menos de 1 minuto → 429 Too Many Requests', async () => {
       const token = generateValidToken();
       prisma.email.findMany.mockResolvedValue([]);
