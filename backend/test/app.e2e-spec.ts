@@ -35,10 +35,13 @@ describe('AppController (e2e)', () => {
               .optional()
               .allow('')
               .default(TEST_APP_SECRET),
-            MONITORED_SENDERS: Joi.string().optional().default(''),
+            MONITORED_SENDERS: Joi.string().optional().allow('').default(''),
             FRONTEND_URL: Joi.string()
               .optional()
+              .allow('')
               .default('http://localhost:5173'),
+            TELEGRAM_BOT_TOKEN: Joi.string().optional().allow('').default(''),
+            TELEGRAM_CHAT_ID: Joi.string().optional().allow('').default(''),
           }),
         }),
         PrismaModule,
