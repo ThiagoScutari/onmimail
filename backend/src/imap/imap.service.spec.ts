@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ImapService } from './imap.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
+import { OAuthService } from '../oauth/oauth.service';
 
 // Mock dependencies
 jest.mock('imap', () => {
@@ -94,11 +95,18 @@ describe('ImapService', () => {
         .mockImplementation((enc: Buffer) => enc.toString('utf8')),
     };
 
+    const mockOAuthService = {
+      isConnected: jest.fn().mockResolvedValue(false),
+      getAccessToken: jest.fn().mockResolvedValue('mock-access-token'),
+      buildXOAuth2Token: jest.fn().mockReturnValue('mock-xoauth2-token'),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ImapService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CryptoService, useValue: mockCryptoService },
+        { provide: OAuthService, useValue: mockOAuthService },
       ],
     }).compile();
 

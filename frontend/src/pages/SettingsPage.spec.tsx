@@ -14,6 +14,10 @@ vi.mock('../services/settingsApi', () => ({
     getAll: vi.fn(),
     update: vi.fn(),
     testTelegram: vi.fn(),
+    oauthStatus: vi.fn().mockResolvedValue({ connected: false, provider: 'microsoft' }),
+    oauthAuthorize: vi.fn().mockResolvedValue({ url: 'https://login.microsoftonline.com/auth' }),
+    oauthCallback: vi.fn().mockResolvedValue({ connected: true }),
+    oauthDisconnect: vi.fn().mockResolvedValue({ disconnected: true }),
   },
 }));
 

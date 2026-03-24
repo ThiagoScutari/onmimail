@@ -16,10 +16,58 @@ export default function SettingsPage() {
 
   const [showTelegramToken, setShowTelegramToken] = useState(false);
   const [showImapPassword, setShowImapPassword] = useState(false);
+  const [showOauthSecret, setShowOauthSecret] = useState(false);
+
+  const [imapAuthMode, setImapAuthMode] = useState<'oauth' | 'password'>('oauth');
+  const [oauthConnected, setOauthConnected] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(true);
 
   useEffect(() => {
     fetchSettings().catch(console.error);
   }, []);
+
+  useEffect(() => {
+    settingsApi
+      .oauthStatus()
+      .then((r) => {
+        setOauthConnected(r.connected);
+        if (r.connected) setImapAuthMode('oauth');
+      })
+      .catch(() => {})
+      .finally(() => setOauthLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'oauth-callback' && e.data?.success) {
+        setOauthConnected(true);
+        setImapAuthMode('oauth');
+        void fetchSettings();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleOauthConnect = async () => {
+    try {
+      const { url } = await settingsApi.oauthAuthorize();
+      window.open(url, 'oauth', 'width=600,height=700');
+    } catch (e) {
+      console.error('Falha ao iniciar OAuth', e);
+      alert('Falha ao iniciar autorizacao OAuth.');
+    }
+  };
+
+  const handleOauthDisconnect = async () => {
+    try {
+      await settingsApi.oauthDisconnect();
+      setOauthConnected(false);
+    } catch (e) {
+      console.error('Falha ao desconectar OAuth', e);
+      alert('Falha ao desconectar.');
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -306,42 +354,143 @@ export default function SettingsPage() {
               Conexao IMAP
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {renderTextInput('Host', 'imap_host')}
-              <div className="flex flex-col gap-1 w-full">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700">Porta</label>
-                  <label className="text-sm font-medium text-slate-600 flex items-center gap-1 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={settings['imap_tls'] !== 'false'}
-                      onChange={(e) =>
-                        handleChange('imap_tls', e.target.checked ? 'true' : 'false')
-                      }
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                    />
-                    TLS
-                  </label>
-                </div>
-                <input
-                  type="number"
-                  value={settings['imap_port'] || '993'}
-                  onChange={(e) => handleChange('imap_port', e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-blue-500 focus:border-blue-500"
-                  min="1"
-                />
-              </div>
-              {renderTextInput('Usuario/Email', 'imap_user', 'email')}
-              {renderPasswordInput('Senha', 'imap_password', showImapPassword, setShowImapPassword)}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setImapAuthMode('oauth')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-lg transition',
+                  imapAuthMode === 'oauth'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                )}
+              >
+                OAuth2 (Outlook)
+              </button>
+              <button
+                onClick={() => setImapAuthMode('password')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-lg transition',
+                  imapAuthMode === 'password'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                )}
+              >
+                Senha (Outros)
+              </button>
             </div>
 
-            {renderSaveButton('imap', [
-              'imap_host',
-              'imap_port',
-              'imap_user',
-              'imap_password',
-              'imap_tls',
-            ])}
+            {imapAuthMode === 'oauth' && (
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {renderTextInput('Client ID', 'oauth_client_id')}
+                  {renderTextInput('Tenant ID', 'oauth_tenant_id')}
+                  {renderPasswordInput(
+                    'Client Secret',
+                    'oauth_client_secret',
+                    showOauthSecret,
+                    setShowOauthSecret,
+                  )}
+                  {oauthConnected && renderTextInput('Email', 'imap_user', 'email')}
+                </div>
+
+                <div className="flex items-center gap-3 mt-6 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={() =>
+                      void saveSection('oauth-azure', [
+                        'oauth_client_id',
+                        'oauth_tenant_id',
+                        'oauth_client_secret',
+                      ])
+                    }
+                    disabled={savingSection === 'oauth-azure'}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    {savingSection === 'oauth-azure' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Credenciais Azure
+                  </button>
+                  {saveSuccess === 'oauth-azure' && (
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                      <Check className="w-4 h-4" /> Salvo!
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100">
+                  {oauthLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                  ) : oauthConnected ? (
+                    <>
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                        <Check className="w-4 h-4" /> Conectado
+                      </span>
+                      <button
+                        onClick={() => void handleOauthDisconnect()}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"
+                      >
+                        Desconectar
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => void handleOauthConnect()}
+                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition"
+                    >
+                      Conectar Outlook
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {imapAuthMode === 'password' && (
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {renderTextInput('Host', 'imap_host')}
+                  <div className="flex flex-col gap-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-slate-700">Porta</label>
+                      <label className="text-sm font-medium text-slate-600 flex items-center gap-1 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={settings['imap_tls'] !== 'false'}
+                          onChange={(e) =>
+                            handleChange('imap_tls', e.target.checked ? 'true' : 'false')
+                          }
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                        />
+                        TLS
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      value={settings['imap_port'] || '993'}
+                      onChange={(e) => handleChange('imap_port', e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-md py-2 px-3 text-sm focus:ring-blue-500 focus:border-blue-500"
+                      min="1"
+                    />
+                  </div>
+                  {renderTextInput('Usuario/Email', 'imap_user', 'email')}
+                  {renderPasswordInput(
+                    'Senha',
+                    'imap_password',
+                    showImapPassword,
+                    setShowImapPassword,
+                  )}
+                </div>
+
+                {renderSaveButton('imap', [
+                  'imap_host',
+                  'imap_port',
+                  'imap_user',
+                  'imap_password',
+                  'imap_tls',
+                ])}
+              </div>
+            )}
           </section>
 
           {/* Resumo de Configuracoes */}
@@ -439,18 +588,43 @@ export default function SettingsPage() {
                 </h4>
                 <dl className="space-y-2 text-sm">
                   <div>
-                    <dt className="text-slate-500">Servidor</dt>
-                    <dd
-                      className={cn(
-                        'font-medium',
-                        settings['imap_host'] ? 'text-slate-900' : 'text-red-500',
-                      )}
-                    >
-                      {settings['imap_host']
-                        ? `${settings['imap_host']}:${settings['imap_port'] || '993'} ${settings['imap_tls'] !== 'false' ? '(TLS)' : ''}`
-                        : 'Nao configurado'}
+                    <dt className="text-slate-500">Autenticacao</dt>
+                    <dd className="font-medium text-slate-900">
+                      {oauthConnected
+                        ? 'OAuth2 (Outlook)'
+                        : imapAuthMode === 'oauth'
+                          ? 'OAuth2 (nao conectado)'
+                          : 'Senha'}
                     </dd>
                   </div>
+                  {imapAuthMode === 'password' && (
+                    <>
+                      <div>
+                        <dt className="text-slate-500">Servidor</dt>
+                        <dd
+                          className={cn(
+                            'font-medium',
+                            settings['imap_host'] ? 'text-slate-900' : 'text-red-500',
+                          )}
+                        >
+                          {settings['imap_host']
+                            ? `${settings['imap_host']}:${settings['imap_port'] || '993'} ${settings['imap_tls'] !== 'false' ? '(TLS)' : ''}`
+                            : 'Nao configurado'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-500">Senha</dt>
+                        <dd
+                          className={cn(
+                            'font-medium',
+                            settings['imap_password'] ? 'text-slate-900' : 'text-red-500',
+                          )}
+                        >
+                          {settings['imap_password'] ? '***CONFIGURED***' : 'Nao configurado'}
+                        </dd>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <dt className="text-slate-500">Conta</dt>
                     <dd
@@ -464,17 +638,6 @@ export default function SettingsPage() {
                           ? settings['imap_user']
                           : settings['imap_user']
                         : 'Nao configurado'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Senha</dt>
-                    <dd
-                      className={cn(
-                        'font-medium',
-                        settings['imap_password'] ? 'text-slate-900' : 'text-red-500',
-                      )}
-                    >
-                      {settings['imap_password'] ? '***CONFIGURED***' : 'Nao configurado'}
                     </dd>
                   </div>
                 </dl>

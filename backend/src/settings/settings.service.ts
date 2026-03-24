@@ -3,7 +3,15 @@ import { CryptoService } from '../crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../telegram/telegram.service';
 
-const SENSITIVE_KEYS = ['telegram_bot_token', 'jwt_secret', 'app_secret'];
+const SENSITIVE_KEYS = [
+  'telegram_bot_token',
+  'jwt_secret',
+  'app_secret',
+  'oauth_refresh_token',
+  'oauth_client_secret',
+  'imap_password',
+  'imap_user',
+];
 
 @Injectable()
 export class SettingsService {

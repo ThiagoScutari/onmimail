@@ -4,6 +4,7 @@ import Imap = require('imap');
 import { simpleParser } from 'mailparser';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
+import { OAuthService } from '../oauth/oauth.service';
 
 export interface ParsedEmail {
   messageId: string;
@@ -27,6 +28,7 @@ export class ImapService implements ImapServiceInterface {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cryptoService: CryptoService,
+    private readonly oauthService: OAuthService,
   ) {}
 
   private async getSettingValue(key: string): Promise<string | null> {
@@ -48,6 +50,24 @@ export class ImapService implements ImapServiceInterface {
     const port = portStr ? parseInt(portStr, 10) : 993;
     const tlsStr = await this.getSettingValue('imap_tls');
     const tls = tlsStr !== 'false';
+
+    const oauthConnected = await this.oauthService.isConnected();
+
+    if (oauthConnected) {
+      const accessToken = await this.oauthService.getAccessToken();
+      const xoauth2 = this.oauthService.buildXOAuth2Token(user, accessToken);
+      return {
+        user,
+        password: '',
+        xoauth2,
+        host,
+        port,
+        tls,
+        tlsOptions: { rejectUnauthorized: false },
+        connTimeout: 30000,
+        authTimeout: 30000,
+      };
+    }
 
     return {
       user,

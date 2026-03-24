@@ -13,6 +13,7 @@ import { EmailsModule } from './emails/emails.module';
 import { SettingsModule } from './settings/settings.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { HealthModule } from './health/health.module';
+import { OAuthModule } from './oauth/oauth.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { HealthModule } from './health/health.module';
     SettingsModule,
     TelegramModule,
     HealthModule,
+    OAuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
