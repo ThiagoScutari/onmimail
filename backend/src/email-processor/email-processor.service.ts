@@ -59,10 +59,9 @@ export class EmailProcessorService {
       this.logger.log(`E-mail processado: ${email.messageId}`);
 
       // Notificação Telegram (usa dados em texto puro da memória, não do BD)
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
       if (this.telegramService.isConfigured()) {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
           await this.telegramService.sendEmailAlert({
             from: email.from,
             subject: email.subject,

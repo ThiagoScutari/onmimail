@@ -63,12 +63,10 @@ export class SettingsService {
   }
 
   async testTelegram(): Promise<{ success: boolean; message: string }> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     if (!this.telegramService.isConfigured()) {
       throw new BadRequestException('Telegram não configurado');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await this.telegramService.sendStatusMessage(
       'Teste de configuração Omnimail',
     );

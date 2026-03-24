@@ -2,3 +2,6 @@
 5b6c989e4a6bba524bd52fac4d3cced5dac49b06:backend/README.md:generic-api-key:5
 5b6c989e4a6bba524bd52fac4d3cced5dac49b06:backend/src/crypto/crypto.service.spec.ts:generic-api-key:6
 09d4c3c0bbd34c9126f0d5586f5c3dc0125fd9de:backend/src/email-processor/email-processor.service.spec.ts:generic-api-key:10
+439a6baa3c3dab2b5a13f393a9adb5045e3f6dac:backend/README.md:generic-api-key:5
+439a6baa3c3dab2b5a13f393a9adb5045e3f6dac:backend/src/crypto/crypto.service.spec.ts:generic-api-key:6
+439a6baa3c3dab2b5a13f393a9adb5045e3f6dac:backend/src/email-processor/email-processor.service.spec.ts:generic-api-key:11

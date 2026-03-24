@@ -1,0 +1,9 @@
+[allowlist]
+description = "Allow test placeholder secrets and README badges"
+paths = [
+  '''backend/README\.md''',
+  '''backend/src/crypto/crypto\.service\.spec\.ts''',
+  '''backend/src/email-processor/email-processor\.service\.spec\.ts''',
+  '''orquestrador/.*\.md''',
+  '''backend/src/settings/settings\.service\.spec\.ts''',
+]
