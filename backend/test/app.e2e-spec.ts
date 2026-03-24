@@ -23,13 +23,15 @@ describe('AppController (e2e)', () => {
           isGlobal: true,
           ignoreEnvFile: true,
           validationSchema: Joi.object({
-            DATABASE_URL: Joi.string().default(
-              'postgresql://test:test@localhost:5432/test',
-            ),
-            JWT_SECRET: Joi.string().default(TEST_JWT_SECRET),
-            APP_SECRET: Joi.string().default(TEST_APP_SECRET),
-            MONITORED_SENDERS: Joi.string().default(''),
-            FRONTEND_URL: Joi.string().default('http://localhost:5173'),
+            DATABASE_URL: Joi.string()
+              .optional()
+              .default('postgresql://test:test@localhost:5432/test'),
+            JWT_SECRET: Joi.string().optional().default(TEST_JWT_SECRET),
+            APP_SECRET: Joi.string().optional().default(TEST_APP_SECRET),
+            MONITORED_SENDERS: Joi.string().optional().default(''),
+            FRONTEND_URL: Joi.string()
+              .optional()
+              .default('http://localhost:5173'),
           }),
         }),
         PrismaModule,

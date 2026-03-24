@@ -67,13 +67,21 @@ describe('Flow E2E', () => {
           isGlobal: true,
           ignoreEnvFile: true,
           validationSchema: Joi.object({
-            DATABASE_URL: Joi.string().default(
-              'postgresql://test:test@localhost:5432/test',
-            ),
-            JWT_SECRET: Joi.string().default('e2e-jwt-secret-123'),
-            APP_SECRET: Joi.string().default(
-              'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
-            ),
+            DATABASE_URL: Joi.string()
+              .optional()
+              .default('postgresql://test:test@localhost:5432/test'),
+            JWT_SECRET: Joi.string().optional().default('e2e-jwt-secret-123'),
+            APP_SECRET: Joi.string()
+              .optional()
+              .default(
+                'aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
+              ),
+            MONITORED_SENDERS: Joi.string().optional().default(''),
+            FRONTEND_URL: Joi.string()
+              .optional()
+              .default('http://localhost:5173'),
+            TELEGRAM_BOT_TOKEN: Joi.string().optional().default(''),
+            TELEGRAM_CHAT_ID: Joi.string().optional().default(''),
           }),
         }),
         PrismaModule,
