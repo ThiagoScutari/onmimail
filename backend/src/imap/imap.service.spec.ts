@@ -45,8 +45,8 @@ jest.mock('imap', () => {
 });
 
 jest.mock('mailparser', () => ({
-  simpleParser: jest.fn((stream, cb) => {
-    cb(null, {
+  simpleParser: jest.fn(() => {
+    return Promise.resolve({
       messageId: 'mock-id',
       from: { text: 'contabiletica@hotmail.com' },
       to: { text: 'me@me.com' },
@@ -94,13 +94,13 @@ describe('ImapService', () => {
 
   it('mail without plain text body falls back to parsed HTML', async () => {
     const mailparser = require('mailparser');
-    mailparser.simpleParser.mockImplementationOnce((stream, cb) => {
-      cb(null, {
+    mailparser.simpleParser.mockImplementationOnce(() =>
+      Promise.resolve({
         from: { text: 'contabiletica@hotmail.com' },
         text: '',
         html: '<p>Hello <b>World</b></p>',
-      });
-    });
+      }),
+    );
     const emails = await service.fetchEmails(new Date(), [
       'contabiletica@hotmail.com',
     ]);
@@ -109,11 +109,11 @@ describe('ImapService', () => {
 
   it('fetchEmails filters out unmatched senders', async () => {
     const mailparser = require('mailparser');
-    mailparser.simpleParser.mockImplementationOnce((stream, cb) => {
-      cb(null, {
+    mailparser.simpleParser.mockImplementationOnce(() =>
+      Promise.resolve({
         from: { text: 'random@email.com' },
-      });
-    });
+      }),
+    );
     const emails = await service.fetchEmails(new Date(), [
       'contabiletica@hotmail.com',
     ]);
