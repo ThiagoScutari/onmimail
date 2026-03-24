@@ -1,5 +1,5 @@
 import api from './api';
-import { Email, EmailDetail, EmailStatus, PaginatedResponse } from '../types/email';
+import type { Email, EmailDetail, EmailStatus, PaginatedResponse } from '../types/email';
 
 export const emailApi = {
   getEmails: async (params?: {

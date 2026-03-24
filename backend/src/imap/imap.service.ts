@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -96,7 +95,8 @@ export class ImapService implements ImapServiceInterface {
                   });
 
                   msg.on('body', (stream) => {
-                    void simpleParser(stream)
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                    void simpleParser(stream as any)
                       .then((parsed) => {
                         const from = parsed.from?.text || '';
 
@@ -130,7 +130,9 @@ export class ImapService implements ImapServiceInterface {
                             attributes?.uid?.toString() ||
                             '',
                           from,
-                          to: parsed.to?.text || '',
+                          to: Array.isArray(parsed.to)
+                            ? parsed.to.map((a) => a.text).join(', ')
+                            : parsed.to?.text || '',
                           subject: parsed.subject || '',
                           body: bodyStr,
                           date: parsed.date || new Date(),

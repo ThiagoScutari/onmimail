@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { emailApi } from '../services/emailApi';
-import { EmailStatus } from '../types/email';
+import type { EmailStatus } from '../types/email';
 
 export const useEmails = (
   page: number,
