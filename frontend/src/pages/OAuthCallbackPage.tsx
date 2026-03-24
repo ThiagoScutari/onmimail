@@ -42,7 +42,12 @@ export default function OAuthCallbackPage() {
 
     settingsApi
       .oauthCallback(code)
-      .then(() => {
+      .then((result) => {
+        if (result && result.connected === false && result.error) {
+          setStatus('error');
+          setErrorMsg(result.error);
+          return;
+        }
         setStatus('success');
         if (window.opener) {
           window.opener.postMessage({ type: 'oauth-callback', success: true }, '*');

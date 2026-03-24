@@ -20,9 +20,15 @@ export class OAuthController {
   @Post('callback')
   async callback(
     @Body() dto: OAuthCallbackDto,
-  ): Promise<{ connected: boolean }> {
-    await this.oauthService.exchangeCodeForTokens(dto.code);
-    return { connected: true };
+  ): Promise<{ connected: boolean; error?: string }> {
+    try {
+      await this.oauthService.exchangeCodeForTokens(dto.code);
+      return { connected: true };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Unknown error during OAuth';
+      return { connected: false, error: message };
+    }
   }
 
   @Get('status')

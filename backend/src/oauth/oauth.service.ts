@@ -34,10 +34,11 @@ export class OAuthService {
       throw new Error('OAuth client credentials not configured in settings');
     }
 
+    // Use 'common' authority to support both personal and organizational accounts
     const msalConfig: msal.Configuration = {
       auth: {
         clientId,
-        authority: `https://login.microsoftonline.com/${tenantId}`,
+        authority: `https://login.microsoftonline.com/common`,
         clientSecret,
       },
     };
@@ -53,7 +54,7 @@ export class OAuthService {
 
     const authCodeUrlParameters: msal.AuthorizationUrlRequest = {
       scopes: [
-        'https://outlook.office365.com/IMAP.AccessAsUser.All',
+        'https://outlook.office.com/IMAP.AccessAsUser.All',
         'offline_access',
       ],
       redirectUri,
@@ -73,13 +74,22 @@ export class OAuthService {
     const tokenRequest: msal.AuthorizationCodeRequest = {
       code,
       scopes: [
-        'https://outlook.office365.com/IMAP.AccessAsUser.All',
+        'https://outlook.office.com/IMAP.AccessAsUser.All',
         'offline_access',
       ],
       redirectUri,
     };
 
-    const response = await client.acquireTokenByCode(tokenRequest);
+    let response: msal.AuthenticationResult | null;
+    try {
+      response = await client.acquireTokenByCode(tokenRequest);
+    } catch (err) {
+      this.logger.error(
+        'Token exchange failed',
+        err instanceof Error ? err.message : err,
+      );
+      throw err;
+    }
 
     if (!response) {
       throw new Error('Failed to acquire tokens from authorization code');
@@ -145,7 +155,7 @@ export class OAuthService {
 
     const silentRequest: msal.SilentFlowRequest = {
       account: accounts[0],
-      scopes: ['https://outlook.office365.com/IMAP.AccessAsUser.All'],
+      scopes: ['https://outlook.office.com/IMAP.AccessAsUser.All'],
     };
 
     try {

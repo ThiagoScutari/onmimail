@@ -13,35 +13,35 @@ Sistema de automação para leitura, alerta e controle de status de e-mails cont
 | Autenticação | JWT (access + refresh tokens) |
 | Criptografia | AES-256-GCM (dados em repouso) |
 | Mensageria | Telegram Bot API |
+| OAuth2 | Microsoft Entra ID (Azure AD) + MSAL Node |
 | Infra | Docker (multi-stage builds) + nginx |
 | CI/CD | GitHub Actions |
 
 ## Funcionalidades
 
 - **Worker IMAP** — Cronjob que acessa a caixa de entrada a cada 4h, filtra remetentes configurados e salva e-mails criptografados
-- **Painel Web** — SPA React com lista de e-mails urgentes, preview em drawer lateral, controle de status (Não Lido / Lido / Respondido)
-- **Alertas Telegram** — Notificação automática de novos e-mails com dados mínimos (sem corpo), link para o painel
-- **Segurança Zero Trust** — Campos sensíveis criptografados com AES-256-GCM no banco, descriptografados apenas em memória
-- **Tela de Configurações** — Gerenciar credenciais IMAP, Telegram e remetentes monitorados via interface web
+- **OAuth2 (Outlook)** — Autenticacao via Microsoft Entra ID com XOAUTH2 para IMAP, sem armazenar senhas
+- **Multi-Folder** — Busca e-mails em multiplas pastas IMAP (INBOX, subpastas), configuraveis pela UI
+- **Painel Web** — SPA React com lista de e-mails urgentes, preview em drawer lateral, controle de status (Nao Lido / Lido / Respondido)
+- **Alertas Telegram** — Notificacao automatica de novos e-mails com dados minimos (sem corpo), link para o painel
+- **Seguranca Zero Trust** — Campos sensiveis criptografados com AES-256-GCM no banco, descriptografados apenas em memoria
+- **Configuracao Dinamica** — Telegram, IMAP, OAuth2 e remetentes configuraveis pela interface web (sem editar .env)
 
 ## Screenshots
 
 ### Tela de Login
 ![Login](screenshots/01-login.png)
 
-### Login — Validação de Credenciais
-![Login Error](screenshots/02-login-error.png)
-
-### Dashboard — Caixa de Entrada Contábil
+### Dashboard — Caixa de Entrada Contabil
 ![Dashboard](screenshots/03-dashboard.png)
 
-### Configurações — Telegram e Monitoramento
+### Configuracoes — Telegram Alertas
 ![Settings Telegram](screenshots/04-settings-telegram.png)
 
-### Configurações — Conexão IMAP
+### Configuracoes — Conexao IMAP / OAuth2
 ![Settings IMAP](screenshots/05-settings-imap.png)
 
-### Swagger — Documentação da API
+### Swagger — Documentacao da API
 ![Swagger](screenshots/07-swagger.png)
 
 ## Estrutura do Projeto
@@ -196,7 +196,7 @@ Acesse: http://localhost (frontend com nginx proxy para API)
 
 ## Segurança
 
-- **Zero Hardcoded** — Nenhum segredo em código. Tudo via `.env`
+- **Zero Hardcoded** — Nenhum segredo em codigo. Credenciais de servico via banco (criptografadas), infra via `.env`
 - **AES-256-GCM** — Campos sensíveis (remetente, assunto, corpo) criptografados no banco
 - **Descriptografia em memória** — Dados nunca expostos em repouso
 - **Pre-commit hooks** — Gitleaks bloqueia push com segredos
@@ -209,20 +209,31 @@ Acesse: http://localhost (frontend com nginx proxy para API)
 
 1. Crie um bot via [@BotFather](https://t.me/BotFather) no Telegram
 2. Envie uma mensagem ao bot e descubra seu Chat ID via `https://api.telegram.org/bot<TOKEN>/getUpdates`
-3. Configure na tela de Configurações do painel (`/settings`) ou no `.env`:
-   ```
-   TELEGRAM_BOT_TOKEN=seu_token
-   TELEGRAM_CHAT_ID=seu_chat_id
-   ```
-4. Teste via botão "Enviar Teste" na tela de configurações
+3. Acesse `/settings` no painel e preencha Bot Token e Chat ID
+4. Teste via botao "Enviar Teste" na tela de configuracoes
+
+## OAuth2 (Outlook)
+
+1. Registre um app no Azure Portal > Entra ID > Registros de aplicativo
+2. Plataforma: **Web**, Redirect URI: `http://localhost:5173/settings/oauth/callback`
+3. Permissoes (Microsoft Graph, Delegadas): `IMAP.AccessAsUser.All`, `User.Read`
+4. Crie um Client Secret (copie o **Valor**, nao o ID)
+5. No Omnimail: Settings > OAuth2 > Preencha Client ID, Tenant ID, Client Secret > "Salvar Credenciais Azure"
+6. Clique "Conectar Outlook" > Autorize na Microsoft
+7. Sincronize os e-mails via botao "Sincronizar agora"
 
 ## Sprints
 
 | Sprint | Foco | PRs |
 |--------|------|-----|
-| 1 | Fundação & Security Zero Trust | #1, #2 |
+| 1 | Fundacao & Security Zero Trust | #1, #2 |
 | 2 | Motor IMAP Criptografado | #3, #4 |
 | 3 | API Endpoint Seguro | #5, #6 |
 | 4 | Painel Web Autenticado | #7, #8 |
 | 5 | Alertas (Telegram + Settings) | #9, #10, #11 |
 | 6 | Testes Regressivos e Deploy | #12, #13 |
+| 7 | CI Hotfix, Config Dinamica, OAuth2, IMAP Multi-Folder | Commits diretos |
+
+## Documentacao
+
+Toda a documentacao de orquestracao, instrucoes por sprint e release notes esta em `orquestrador/`.

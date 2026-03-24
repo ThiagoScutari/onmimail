@@ -336,7 +336,25 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {renderSaveButton('monitoramento', ['monitored_senders', 'sync_interval_hours'])}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              <div className="flex flex-col gap-1 w-full">
+                <label className="text-sm font-medium text-slate-700">
+                  Pastas IMAP (separadas por virgula)
+                </label>
+                <textarea
+                  value={settings['imap_folders'] || ''}
+                  onChange={(e) => handleChange('imap_folders', e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-md p-3 text-sm focus:ring-blue-500 focus:border-blue-500 h-24 resize-none"
+                  placeholder="INBOX, Contabilidade, Fiscal (padrao: INBOX)"
+                />
+              </div>
+            </div>
+
+            {renderSaveButton('monitoramento', [
+              'monitored_senders',
+              'sync_interval_hours',
+              'imap_folders',
+            ])}
           </section>
 
           {/* IMAP */}
