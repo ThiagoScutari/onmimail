@@ -24,6 +24,26 @@ Sistema de automação para leitura, alerta e controle de status de e-mails cont
 - **Segurança Zero Trust** — Campos sensíveis criptografados com AES-256-GCM no banco, descriptografados apenas em memória
 - **Tela de Configurações** — Gerenciar credenciais IMAP, Telegram e remetentes monitorados via interface web
 
+## Screenshots
+
+### Tela de Login
+![Login](screenshots/01-login.png)
+
+### Login — Validação de Credenciais
+![Login Error](screenshots/02-login-error.png)
+
+### Dashboard — Caixa de Entrada Contábil
+![Dashboard](screenshots/03-dashboard.png)
+
+### Configurações — Telegram e Monitoramento
+![Settings Telegram](screenshots/04-settings-telegram.png)
+
+### Configurações — Conexão IMAP
+![Settings IMAP](screenshots/05-settings-imap.png)
+
+### Swagger — Documentação da API
+![Swagger](screenshots/07-swagger.png)
+
 ## Estrutura do Projeto
 
 ```
