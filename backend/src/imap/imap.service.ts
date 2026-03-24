@@ -89,6 +89,31 @@ export class ImapService implements ImapServiceInterface {
     });
   }
 
+  async listFolders(): Promise<string[]> {
+    const imap = new Imap(await this.getConfig());
+    await this.connect(imap);
+    return new Promise<string[]>((resolve, reject) => {
+      imap.getBoxes((err, boxes) => {
+        imap.end();
+        if (err) return reject(err);
+        const folders: string[] = [];
+        const walk = (tree: Imap.MailBoxes, prefix: string) => {
+          for (const name of Object.keys(tree)) {
+            const fullPath = prefix
+              ? `${prefix}${tree[name].delimiter}${name}`
+              : name;
+            folders.push(fullPath);
+            if (tree[name].children) {
+              walk(tree[name].children, fullPath);
+            }
+          }
+        };
+        walk(boxes, '');
+        resolve(folders);
+      });
+    });
+  }
+
   private openBox(
     imap: Imap,
     boxName: string,
@@ -102,110 +127,145 @@ export class ImapService implements ImapServiceInterface {
     });
   }
 
+  private async getFolders(): Promise<string[]> {
+    const foldersConfig = await this.getSettingValue('imap_folders');
+    if (foldersConfig && foldersConfig.trim()) {
+      return foldersConfig
+        .split(',')
+        .map((f) => f.trim())
+        .filter(Boolean);
+    }
+    return ['INBOX'];
+  }
+
+  private fetchFromBox(
+    imap: Imap,
+    boxName: string,
+    since: Date,
+    senders: string[],
+  ): Promise<ParsedEmail[]> {
+    return new Promise<ParsedEmail[]>((resolve, reject) => {
+      imap.openBox(boxName, true, (openErr) => {
+        if (openErr) {
+          this.logger.warn(
+            `Pasta ${boxName} não encontrada: ${openErr.message}`,
+          );
+          return resolve([]);
+        }
+
+        imap.search([['SINCE', since]], (err, results) => {
+          if (err) {
+            return reject(err);
+          }
+
+          if (!results || results.length === 0) {
+            return resolve([]);
+          }
+
+          const fetch = imap.fetch(results, { bodies: '' });
+          const promises: Promise<ParsedEmail | null>[] = [];
+
+          fetch.on('message', (msg) => {
+            promises.push(
+              new Promise<ParsedEmail | null>((resolveMsg) => {
+                let attributes: Imap.ImapMessageAttributes;
+
+                msg.on('attributes', (attrs) => {
+                  attributes = attrs;
+                });
+
+                msg.on('body', (stream) => {
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                  void simpleParser(stream as any)
+                    .then((parsed) => {
+                      const from = parsed.from?.text || '';
+
+                      const isWatchedSender = senders.some((sender) => {
+                        const s = sender.toLowerCase();
+                        if (s.startsWith('*@')) {
+                          const domain = s.split('*@')[1];
+                          return from.toLowerCase().includes(`@${domain}`);
+                        }
+                        return from.toLowerCase().includes(s);
+                      });
+
+                      if (!isWatchedSender) {
+                        resolveMsg(null);
+                        return;
+                      }
+
+                      let bodyStr = parsed.text || '';
+                      if (!bodyStr && parsed.html) {
+                        bodyStr = (
+                          typeof parsed.html === 'string' ? parsed.html : ''
+                        )
+                          .replace(/<[^>]*>?/gm, '')
+                          .trim()
+                          .substring(0, 500);
+                      }
+
+                      const email: ParsedEmail = {
+                        messageId:
+                          parsed.messageId || attributes?.uid?.toString() || '',
+                        from,
+                        to: Array.isArray(parsed.to)
+                          ? parsed.to.map((a) => a.text).join(', ')
+                          : parsed.to?.text || '',
+                        subject: parsed.subject || '',
+                        body: bodyStr,
+                        date: parsed.date || new Date(),
+                        hasAttachments:
+                          parsed.attachments && parsed.attachments.length > 0
+                            ? true
+                            : false,
+                      };
+
+                      resolveMsg(email);
+                    })
+                    .catch(() => resolveMsg(null));
+                });
+              }),
+            );
+          });
+
+          fetch.once('error', (fetchErr) => {
+            reject(fetchErr);
+          });
+
+          fetch.once('end', () => {
+            void Promise.all(promises).then((allParsed) => {
+              resolve(allParsed.filter((e): e is ParsedEmail => e !== null));
+            });
+          });
+        });
+      });
+    });
+  }
+
   async fetchEmails(since: Date, senders: string[]): Promise<ParsedEmail[]> {
     let attempt = 0;
     const maxRetries = 3;
     const backoff = [1000, 2000, 4000];
+    const folders = await this.getFolders();
 
     while (attempt <= maxRetries) {
       const imap = new Imap(await this.getConfig());
       try {
         await this.connect(imap);
-        await this.openBox(imap, 'INBOX', true);
 
-        return await new Promise<ParsedEmail[]>((resolve, reject) => {
-          imap.search(['UNSEEN', ['SINCE', since]], (err, results) => {
-            if (err) {
-              imap.end();
-              return reject(err);
-            }
+        const allEmails: ParsedEmail[] = [];
 
-            if (!results || results.length === 0) {
-              imap.end();
-              return resolve([]);
-            }
+        for (const folder of folders) {
+          this.logger.log(`Buscando na pasta: ${folder}`);
+          const emails = await this.fetchFromBox(imap, folder, since, senders);
+          this.logger.log(
+            `Pasta ${folder}: ${emails.length} e-mails encontrados`,
+          );
+          allEmails.push(...emails);
+        }
 
-            const fetch = imap.fetch(results, { bodies: '' });
-            const promises: Promise<ParsedEmail | null>[] = [];
-
-            fetch.on('message', (msg) => {
-              promises.push(
-                new Promise<ParsedEmail | null>((resolveMsg) => {
-                  let attributes: Imap.ImapMessageAttributes;
-
-                  msg.on('attributes', (attrs) => {
-                    attributes = attrs;
-                  });
-
-                  msg.on('body', (stream) => {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-                    void simpleParser(stream as any)
-                      .then((parsed) => {
-                        const from = parsed.from?.text || '';
-
-                        const isWatchedSender = senders.some((sender) => {
-                          const s = sender.toLowerCase();
-                          if (s.startsWith('*@')) {
-                            const domain = s.split('*@')[1];
-                            return from.toLowerCase().includes(`@${domain}`);
-                          }
-                          return from.toLowerCase().includes(s);
-                        });
-
-                        if (!isWatchedSender) {
-                          resolveMsg(null);
-                          return;
-                        }
-
-                        let bodyStr = parsed.text || '';
-                        if (!bodyStr && parsed.html) {
-                          bodyStr = (
-                            typeof parsed.html === 'string' ? parsed.html : ''
-                          )
-                            .replace(/<[^>]*>?/gm, '')
-                            .trim()
-                            .substring(0, 500);
-                        }
-
-                        const email: ParsedEmail = {
-                          messageId:
-                            parsed.messageId ||
-                            attributes?.uid?.toString() ||
-                            '',
-                          from,
-                          to: Array.isArray(parsed.to)
-                            ? parsed.to.map((a) => a.text).join(', ')
-                            : parsed.to?.text || '',
-                          subject: parsed.subject || '',
-                          body: bodyStr,
-                          date: parsed.date || new Date(),
-                          hasAttachments:
-                            parsed.attachments && parsed.attachments.length > 0
-                              ? true
-                              : false,
-                        };
-
-                        resolveMsg(email);
-                      })
-                      .catch(() => resolveMsg(null));
-                  });
-                }),
-              );
-            });
-
-            fetch.once('error', (fetchErr) => {
-              imap.end();
-              reject(fetchErr);
-            });
-
-            fetch.once('end', () => {
-              void Promise.all(promises).then((allParsed) => {
-                imap.end();
-                resolve(allParsed.filter((e): e is ParsedEmail => e !== null));
-              });
-            });
-          });
-        });
+        imap.end();
+        return allEmails;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         this.logger.error(
