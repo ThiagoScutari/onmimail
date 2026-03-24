@@ -74,6 +74,7 @@ describe('Security (e2e)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
+          ignoreEnvFile: true,
           validationSchema: Joi.object({
             DATABASE_URL: Joi.string().default(
               'postgresql://test:test@localhost:5432/test',

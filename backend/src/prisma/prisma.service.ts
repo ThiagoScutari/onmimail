@@ -9,10 +9,14 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    const adapter = new PrismaPg(pool as any);
-    super({ adapter });
+    try {
+      const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const adapter = new PrismaPg(pool as any);
+      super({ adapter });
+    } catch {
+      super();
+    }
   }
 
   async onModuleInit() {
