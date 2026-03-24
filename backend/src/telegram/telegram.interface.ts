@@ -8,5 +8,5 @@ export interface TelegramNotification {
 export interface TelegramServiceInterface {
   sendEmailAlert(notification: TelegramNotification): Promise<void>;
   sendStatusMessage(message: string): Promise<void>;
-  isConfigured(): boolean;
+  isConfigured(): Promise<boolean>;
 }

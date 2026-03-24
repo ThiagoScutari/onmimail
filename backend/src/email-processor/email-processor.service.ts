@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ImapService } from '../imap/imap.service';
 import { CryptoService } from '../crypto/crypto.service';
@@ -15,9 +14,28 @@ export class EmailProcessorService {
     private readonly imapService: ImapService,
     private readonly cryptoService: CryptoService,
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly telegramService: TelegramService,
   ) {}
+
+  private async getSettingValue(key: string): Promise<string | null> {
+    const setting = await this.prisma.setting.findUnique({ where: { key } });
+    if (!setting) return null;
+    const value = this.cryptoService.decrypt(
+      Buffer.from(setting.value_enc),
+      setting.iv,
+      setting.tag,
+    );
+    return value && value.trim() !== '' ? value : null;
+  }
+
+  async getMonitoredSenders(): Promise<string[]> {
+    const sendersConfig = await this.getSettingValue('monitored_senders');
+    if (!sendersConfig) return [];
+    return sendersConfig
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
 
   async processNewEmails(since: Date, senders: string[]): Promise<number> {
     const emails = await this.imapService.fetchEmails(since, senders);
@@ -58,9 +76,7 @@ export class EmailProcessorService {
       processedCount++;
       this.logger.log(`E-mail processado: ${email.messageId}`);
 
-      // Notificação Telegram (usa dados em texto puro da memória, não do BD)
-
-      if (this.telegramService.isConfigured()) {
+      if (await this.telegramService.isConfigured()) {
         try {
           await this.telegramService.sendEmailAlert({
             from: email.from,
@@ -93,15 +109,12 @@ export class EmailProcessorService {
     const since = new Date();
     since.setDate(since.getDate() - 30);
 
-    const sendersConfig =
-      this.configService.get<string>('MONITORED_SENDERS') ?? '';
-    const senders = sendersConfig
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const senders = await this.getMonitoredSenders();
 
     if (senders.length === 0) {
-      this.logger.warn('Nenhum remetente configurado em MONITORED_SENDERS');
+      this.logger.warn(
+        'Nenhum remetente configurado em monitored_senders (Settings)',
+      );
       return;
     }
 

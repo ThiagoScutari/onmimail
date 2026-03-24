@@ -63,7 +63,8 @@ export class SettingsService {
   }
 
   async testTelegram(): Promise<{ success: boolean; message: string }> {
-    if (!this.telegramService.isConfigured()) {
+    const configured = await this.telegramService.isConfigured();
+    if (!configured) {
       throw new BadRequestException('Telegram não configurado');
     }
 

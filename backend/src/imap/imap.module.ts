@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from '../prisma/prisma.module';
+import { CryptoModule } from '../crypto/crypto.module';
 import { ImapService } from './imap.service';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [PrismaModule, CryptoModule],
   providers: [ImapService],
   exports: [ImapService],
 })

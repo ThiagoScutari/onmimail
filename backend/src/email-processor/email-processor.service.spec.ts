@@ -31,6 +31,9 @@ describe('EmailProcessorService', () => {
       findUnique: jest.Mock;
       create: jest.Mock;
     };
+    setting: {
+      findUnique: jest.Mock;
+    };
   };
 
   beforeEach(async () => {
@@ -44,6 +47,9 @@ describe('EmailProcessorService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'test-id' }),
       },
+      setting: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -55,7 +61,7 @@ describe('EmailProcessorService', () => {
         {
           provide: TelegramService,
           useValue: {
-            isConfigured: jest.fn().mockReturnValue(false),
+            isConfigured: jest.fn().mockResolvedValue(false),
             sendEmailAlert: jest.fn().mockResolvedValue(undefined),
             sendStatusMessage: jest.fn().mockResolvedValue(undefined),
           },
@@ -65,8 +71,6 @@ describe('EmailProcessorService', () => {
           useValue: {
             get: (key: string) => {
               if (key === 'APP_SECRET') return TEST_APP_SECRET;
-              if (key === 'MONITORED_SENDERS')
-                return 'contabiletica@hotmail.com';
               return undefined;
             },
           },
@@ -76,6 +80,21 @@ describe('EmailProcessorService', () => {
 
     service = module.get<EmailProcessorService>(EmailProcessorService);
     cryptoService = module.get<CryptoService>(CryptoService);
+
+    // Set up the setting mock to return encrypted monitored_senders
+    const encSenders = cryptoService.encrypt('contabiletica@hotmail.com');
+    mockPrisma.setting.findUnique.mockImplementation(
+      ({ where }: { where: { key: string } }) => {
+        if (where.key === 'monitored_senders') {
+          return Promise.resolve({
+            value_enc: encSenders.encrypted,
+            iv: encSenders.iv,
+            tag: encSenders.tag,
+          });
+        }
+        return Promise.resolve(null);
+      },
+    );
   });
 
   it('processNewEmails com 3 e-mails cria 3 registros no BD', async () => {

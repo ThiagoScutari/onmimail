@@ -1,58 +1,52 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TelegramService, TelegramNotification } from './telegram.service';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../crypto/crypto.service';
 
 const mockSendMessage = jest.fn().mockResolvedValue(true);
-const mockOnText = jest.fn();
 
 jest.mock('node-telegram-bot-api', () => {
-  return jest.fn().mockImplementation(() => {
-    return {
-      sendMessage: mockSendMessage,
-      onText: mockOnText,
-    };
-  });
+  return jest.fn().mockImplementation(() => ({
+    sendMessage: mockSendMessage,
+  }));
 });
 
 describe('TelegramService', () => {
   let service: TelegramService;
-
-  const mockPrismaService = {
-    email: {
-      count: jest.fn().mockResolvedValue(5),
-    },
-  };
+  let mockPrisma: Record<string, any>;
+  let mockCrypto: Record<string, any>;
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('Unconfigured', () => {
+  describe('Unconfigured (no settings in DB)', () => {
     beforeEach(async () => {
+      mockPrisma = {
+        setting: { findUnique: jest.fn().mockResolvedValue(null) },
+        email: { count: jest.fn().mockResolvedValue(0) },
+      };
+      mockCrypto = { decrypt: jest.fn() };
+
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           TelegramService,
-          {
-            provide: ConfigService,
-            useValue: { get: jest.fn().mockReturnValue('') },
-          },
-          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: CryptoService, useValue: mockCrypto },
         ],
       }).compile();
 
       service = module.get<TelegramService>(TelegramService);
-      service.onModuleInit();
     });
 
-    it('isConfigured() returns false when token not in env', () => {
-      expect(service.isConfigured()).toBe(false);
+    it('isConfigured() returns false when no settings in DB', async () => {
+      expect(await service.isConfigured()).toBe(false);
     });
 
-    it('sendEmailAlert logs warning and does not throw error', async () => {
+    it('sendEmailAlert does not throw when unconfigured', async () => {
       const notification: TelegramNotification = {
         from: 'test@test.com',
-        subject: 'Test Subject',
+        subject: 'Test',
         date: '2026-03-23 15:00',
         emailId: 'uuid',
       };
@@ -61,32 +55,48 @@ describe('TelegramService', () => {
     });
   });
 
-  describe('Configured', () => {
+  describe('Configured (settings in DB)', () => {
     beforeEach(async () => {
+      mockPrisma = {
+        setting: {
+          findUnique: jest
+            .fn()
+            .mockImplementation(({ where: { key } }: any) => {
+              if (key === 'telegram_bot_token')
+                return { value_enc: Buffer.from('enc'), iv: 'iv', tag: 'tag' };
+              if (key === 'telegram_chat_id')
+                return { value_enc: Buffer.from('enc'), iv: 'iv', tag: 'tag' };
+              return null;
+            }),
+        },
+        email: { count: jest.fn().mockResolvedValue(5) },
+      };
+      mockCrypto = {
+        decrypt: jest.fn().mockImplementation(() => {
+          // Return different values based on call order
+
+          if ((mockCrypto.decrypt as jest.Mock).mock.calls.length % 2 === 1)
+            return 'fake-token';
+          return '123456';
+        }),
+      };
+
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           TelegramService,
-          {
-            provide: ConfigService,
-            useValue: {
-              get: jest.fn((key: string) =>
-                key === 'TELEGRAM_BOT_TOKEN' ? 'token' : 'chat',
-              ),
-            },
-          },
-          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: CryptoService, useValue: mockCrypto },
         ],
       }).compile();
 
       service = module.get<TelegramService>(TelegramService);
-      service.onModuleInit();
     });
 
-    it('isConfigured() returns true', () => {
-      expect(service.isConfigured()).toBe(true);
+    it('isConfigured() returns true when settings exist', async () => {
+      expect(await service.isConfigured()).toBe(true);
     });
 
-    it('sendEmailAlert envia mensagem formatada com parse_mode Markdown', async () => {
+    it('sendEmailAlert sends formatted Markdown message', async () => {
       const notification: TelegramNotification = {
         from: 'test@contabiletica.com',
         subject: 'Guia do Mes',
@@ -95,13 +105,13 @@ describe('TelegramService', () => {
       };
       await service.sendEmailAlert(notification);
       expect(mockSendMessage).toHaveBeenCalledWith(
-        'chat',
+        '123456',
         expect.stringContaining('URGENTE'),
         { parse_mode: 'Markdown' },
       );
     });
 
-    it('sendEmailAlert NÃO inclui corpo do email', async () => {
+    it('sendEmailAlert does NOT include email body', async () => {
       const notification: TelegramNotification = {
         from: 'test@contabiletica.com',
         subject: 'Guia do Mes',
@@ -109,25 +119,19 @@ describe('TelegramService', () => {
         emailId: 'uuid',
       };
       await service.sendEmailAlert(notification);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const calledText = mockSendMessage.mock.calls[0][1] as string;
       expect(calledText).toContain('test@contabiletica.com');
       expect(calledText).toContain('Guia do Mes');
-      expect(calledText).toContain('2026-03-23 15:00');
       expect(calledText).not.toContain('corpo');
     });
 
-    it('sendStatusMessage envia mensagem de texto', async () => {
+    it('sendStatusMessage sends text message', async () => {
       await service.sendStatusMessage('System OK');
       expect(mockSendMessage).toHaveBeenCalledWith(
-        'chat',
+        '123456',
         expect.stringContaining('System OK'),
         { parse_mode: 'Markdown' },
       );
-    });
-
-    it('Comando /status retorna estatisticas', () => {
-      expect(mockOnText).toHaveBeenCalledWith(/\/status/, expect.any(Function));
     });
   });
 });

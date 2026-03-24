@@ -36,7 +36,7 @@ describe('SettingsService', () => {
     };
 
     mockTelegram = {
-      isConfigured: jest.fn().mockReturnValue(false),
+      isConfigured: jest.fn().mockResolvedValue(false),
       sendStatusMessage: jest.fn().mockResolvedValue(undefined),
       sendEmailAlert: jest.fn().mockResolvedValue(undefined),
     };
@@ -118,7 +118,7 @@ describe('SettingsService', () => {
   });
 
   it('testTelegram() chama TelegramService se configurado', async () => {
-    mockTelegram.isConfigured.mockReturnValue(true);
+    mockTelegram.isConfigured.mockResolvedValue(true);
 
     const result = await service.testTelegram();
 

@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-require-imports, @typescript-eslint/no-implied-eval */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ImapService } from './imap.service';
-import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../crypto/crypto.service';
 
 // Mock dependencies
 jest.mock('imap', () => {
@@ -59,17 +60,45 @@ jest.mock('mailparser', () => ({
   }),
 }));
 
+const mockSettingValues: Record<string, string> = {
+  imap_host: 'mockHost',
+  imap_port: '993',
+  imap_user: 'mockUser',
+  imap_password: 'mockPassword',
+  imap_tls: 'true',
+};
+
 describe('ImapService', () => {
   let service: ImapService;
 
   beforeEach(async () => {
+    const mockPrisma = {
+      setting: {
+        findUnique: jest
+          .fn()
+          .mockImplementation(({ where }: { where: { key: string } }) => {
+            const val = mockSettingValues[where.key];
+            if (!val) return Promise.resolve(null);
+            return Promise.resolve({
+              value_enc: Buffer.from(val),
+              iv: 'mock-iv',
+              tag: 'mock-tag',
+            });
+          }),
+      },
+    };
+
+    const mockCryptoService = {
+      decrypt: jest
+        .fn()
+        .mockImplementation((enc: Buffer) => enc.toString('utf8')),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ImapService,
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('mockValue') },
-        },
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: CryptoService, useValue: mockCryptoService },
       ],
     }).compile();
 

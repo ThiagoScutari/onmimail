@@ -79,6 +79,9 @@ describe('Emails E2E', () => {
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      setting: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $connect: jest.fn(),
       $disconnect: jest.fn(),
     };
@@ -104,10 +107,6 @@ describe('Emails E2E', () => {
               .allow('')
               .empty('')
               .default(TEST_APP_SECRET),
-            MONITORED_SENDERS: Joi.string()
-              .optional()
-              .allow('')
-              .default('contabiletica@hotmail.com'),
             FRONTEND_URL: Joi.string()
               .optional()
               .allow('')
@@ -146,6 +145,21 @@ describe('Emails E2E', () => {
     cryptoService = moduleFixture.get<CryptoService>(CryptoService);
     const configService = moduleFixture.get<ConfigService>(ConfigService);
     jwtSecret = configService.get<string>('JWT_SECRET')!;
+
+    // Set up encrypted monitored_senders setting for DB reads
+    const encSenders = cryptoService.encrypt('contabiletica@hotmail.com');
+    (prisma as any).setting.findUnique.mockImplementation(
+      ({ where }: { where: { key: string } }) => {
+        if (where.key === 'monitored_senders') {
+          return Promise.resolve({
+            value_enc: encSenders.encrypted,
+            iv: encSenders.iv,
+            tag: encSenders.tag,
+          });
+        }
+        return Promise.resolve(null);
+      },
+    );
   });
 
   afterAll(async () => {

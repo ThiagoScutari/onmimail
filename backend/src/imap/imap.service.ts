@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import Imap = require('imap');
 import { simpleParser } from 'mailparser';
+import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../crypto/crypto.service';
 
 export interface ParsedEmail {
   messageId: string;
@@ -23,15 +24,37 @@ export interface ImapServiceInterface {
 export class ImapService implements ImapServiceInterface {
   private readonly logger = new Logger(ImapService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
-  private getConfig(): Imap.Config {
+  private async getSettingValue(key: string): Promise<string | null> {
+    const setting = await this.prisma.setting.findUnique({ where: { key } });
+    if (!setting) return null;
+    const value = this.cryptoService.decrypt(
+      Buffer.from(setting.value_enc),
+      setting.iv,
+      setting.tag,
+    );
+    return value && value.trim() !== '' ? value : null;
+  }
+
+  private async getConfig(): Promise<Imap.Config> {
+    const user = (await this.getSettingValue('imap_user')) || '';
+    const password = (await this.getSettingValue('imap_password')) || '';
+    const host = (await this.getSettingValue('imap_host')) || '';
+    const portStr = await this.getSettingValue('imap_port');
+    const port = portStr ? parseInt(portStr, 10) : 993;
+    const tlsStr = await this.getSettingValue('imap_tls');
+    const tls = tlsStr !== 'false';
+
     return {
-      user: this.configService.get<string>('IMAP_USER') || '',
-      password: this.configService.get<string>('IMAP_PASSWORD') || '',
-      host: this.configService.get<string>('IMAP_HOST') || '',
-      port: this.configService.get<number>('IMAP_PORT') || 993,
-      tls: true,
+      user,
+      password,
+      host,
+      port,
+      tls,
       tlsOptions: { rejectUnauthorized: false },
       connTimeout: 30000,
       authTimeout: 30000,
@@ -65,7 +88,7 @@ export class ImapService implements ImapServiceInterface {
     const backoff = [1000, 2000, 4000];
 
     while (attempt <= maxRetries) {
-      const imap = new Imap(this.getConfig());
+      const imap = new Imap(await this.getConfig());
       try {
         await this.connect(imap);
         await this.openBox(imap, 'INBOX', true);
@@ -182,7 +205,7 @@ export class ImapService implements ImapServiceInterface {
   }
 
   async markAsRead(messageId: string): Promise<void> {
-    const imap = new Imap(this.getConfig());
+    const imap = new Imap(await this.getConfig());
     await this.connect(imap);
     await this.openBox(imap, 'INBOX', false);
 
