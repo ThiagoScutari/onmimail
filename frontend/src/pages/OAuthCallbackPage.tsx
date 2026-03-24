@@ -3,10 +3,35 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { settingsApi } from '../services/settingsApi';
 
+/**
+ * Extract the OAuth authorization code from the URL.
+ *
+ * Microsoft Azure AD returns the code in the query string (?code=xxx) when
+ * response_mode=query, but when the redirect URI is registered as an SPA
+ * platform type, Azure AD may override this and deliver the code in a URL
+ * fragment (#code=xxx) instead.  We check both locations so the callback
+ * works regardless of which mode Azure AD uses.
+ */
+function extractCodeFromUrl(searchParams: URLSearchParams): string | null {
+  // 1. Check query string (?code=xxx) — standard for response_mode=query
+  const fromQuery = searchParams.get('code');
+  if (fromQuery) return fromQuery;
+
+  // 2. Check URL hash fragment (#code=xxx) — Azure AD SPA redirect default
+  const hash = window.location.hash;
+  if (hash) {
+    const hashParams = new URLSearchParams(hash.substring(1));
+    const fromHash = hashParams.get('code');
+    if (fromHash) return fromHash;
+  }
+
+  return null;
+}
+
 export default function OAuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const code = useMemo(() => searchParams.get('code'), [searchParams]);
+  const code = useMemo(() => extractCodeFromUrl(searchParams), [searchParams]);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(code ? 'loading' : 'error');
   const [errorMsg, setErrorMsg] = useState(
     code ? '' : 'Codigo de autorizacao nao encontrado na URL.',

@@ -52,7 +52,8 @@ export default function SettingsPage() {
   const handleOauthConnect = async () => {
     try {
       const { url } = await settingsApi.oauthAuthorize();
-      window.open(url, 'oauth', 'width=600,height=700');
+      // Redirect instead of popup to avoid browser popup blockers
+      window.location.href = url;
     } catch (e) {
       console.error('Falha ao iniciar OAuth', e);
       alert('Falha ao iniciar autorizacao OAuth.');

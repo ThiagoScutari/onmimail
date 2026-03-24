@@ -45,7 +45,7 @@ export class OAuthService {
     return new msal.ConfidentialClientApplication(msalConfig);
   }
 
-  async getAuthorizationUrl(/* provider = 'microsoft' */): Promise<string> {
+  async getAuthorizationUrl(/* provider?: string */): Promise<string> {
     const client = await this.createMsalClient();
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -63,10 +63,8 @@ export class OAuthService {
     return url;
   }
 
-  async exchangeCodeForTokens(
-    code: string,
-    provider = 'microsoft',
-  ): Promise<void> {
+  async exchangeCodeForTokens(code: string): Promise<void> {
+    const provider = 'microsoft';
     const client = await this.createMsalClient();
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -127,7 +125,7 @@ export class OAuthService {
     });
   }
 
-  async getAccessToken(/* provider = 'microsoft' */): Promise<string> {
+  async getAccessToken(/* provider?: string */): Promise<string> {
     const cachedTokens = await this.getSettingValue('oauth_refresh_token');
     if (!cachedTokens) {
       throw new Error('No OAuth tokens found. Please connect OAuth first.');
@@ -189,12 +187,12 @@ export class OAuthService {
     ).toString('base64');
   }
 
-  async isConnected(/* provider = 'microsoft' */): Promise<boolean> {
+  async isConnected(/* provider?: string */): Promise<boolean> {
     const refreshToken = await this.getSettingValue('oauth_refresh_token');
     return refreshToken !== null;
   }
 
-  async disconnect(/* provider = 'microsoft' */): Promise<void> {
+  async disconnect(/* provider?: string */): Promise<void> {
     await this.prisma.setting.deleteMany({
       where: {
         key: { in: ['oauth_refresh_token', 'oauth_provider'] },

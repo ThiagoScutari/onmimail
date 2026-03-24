@@ -12,9 +12,8 @@ export class OAuthController {
   async authorize(
     @Query('provider') provider?: string,
   ): Promise<{ url: string }> {
-    const url = await this.oauthService.getAuthorizationUrl(
-      provider || 'microsoft',
-    );
+    void provider; // reserved for future multi-provider support
+    const url = await this.oauthService.getAuthorizationUrl();
     return { url };
   }
 
@@ -22,10 +21,7 @@ export class OAuthController {
   async callback(
     @Body() dto: OAuthCallbackDto,
   ): Promise<{ connected: boolean }> {
-    await this.oauthService.exchangeCodeForTokens(
-      dto.code,
-      dto.provider || 'microsoft',
-    );
+    await this.oauthService.exchangeCodeForTokens(dto.code);
     return { connected: true };
   }
 
@@ -33,9 +29,7 @@ export class OAuthController {
   async status(
     @Query('provider') provider?: string,
   ): Promise<{ connected: boolean; provider: string }> {
-    const connected = await this.oauthService.isConnected(
-      provider || 'microsoft',
-    );
+    const connected = await this.oauthService.isConnected();
     return { connected, provider: provider || 'microsoft' };
   }
 
@@ -43,7 +37,8 @@ export class OAuthController {
   async disconnect(
     @Body() dto: OAuthDisconnectDto,
   ): Promise<{ disconnected: boolean }> {
-    await this.oauthService.disconnect(dto.provider || 'microsoft');
+    void dto; // reserved for future multi-provider support
+    await this.oauthService.disconnect();
     return { disconnected: true };
   }
 }
