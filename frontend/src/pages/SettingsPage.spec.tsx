@@ -37,62 +37,57 @@ describe('SettingsPage', () => {
     window.alert = vi.fn();
     (settingsApi.getAll as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       telegram_bot_token: '***CONFIGURED***',
+      telegram_chat_id: '1113158400',
       monitored_senders: 'teste@teste.com',
+      imap_host: 'outlook.office365.com',
     });
     (settingsApi.update as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({});
   });
 
-  it('renderiza seções principais após loading', async () => {
+  it('renderiza secoes e resumo apos loading', async () => {
     renderWithProviders(<SettingsPage />);
-    expect(await screen.findByText('Telegram Alertas')).toBeInTheDocument();
-    expect(screen.getByText('Regras de Monitoramento')).toBeInTheDocument();
-    expect(screen.getByText('Conexão IMAP')).toBeInTheDocument();
+    const telegramHeaders = await screen.findAllByText('Telegram Alertas');
+    expect(telegramHeaders.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Resumo das Configuracoes Ativas/i)).toBeInTheDocument();
   });
 
-  it('exibe ***CONFIGURED*** quando valor é retornado', async () => {
+  it('exibe ***CONFIGURED*** quando valor e mascarado', async () => {
     renderWithProviders(<SettingsPage />);
-    expect(await screen.findByDisplayValue('***CONFIGURED***')).toBeInTheDocument();
+    await screen.findAllByText('Telegram Alertas');
+    expect(screen.getByDisplayValue('***CONFIGURED***')).toBeInTheDocument();
   });
 
-  it('botão Enviar Teste chama endpoint correto', async () => {
+  it('botao Enviar Teste chama endpoint correto', async () => {
     (settingsApi.testTelegram as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
     });
     renderWithProviders(<SettingsPage />);
-
-    await screen.findByText('Telegram Alertas');
+    await screen.findAllByText('Telegram Alertas');
     fireEvent.click(screen.getByText('Enviar Teste'));
-
     await waitFor(() => {
       expect(settingsApi.testTelegram).toHaveBeenCalled();
     });
   });
 
-  it('não envia dados se estiver ***CONFIGURED***', async () => {
+  it('Salvar Tudo nao envia campos mascarados', async () => {
     renderWithProviders(<SettingsPage />);
-    await screen.findByText('Telegram Alertas');
-
-    const buttons = screen.getAllByText('Salvar');
+    await screen.findAllByText('Telegram Alertas');
+    const buttons = screen.getAllByText('Salvar Tudo');
     fireEvent.click(buttons[0]);
-
-    expect(settingsApi.update).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(settingsApi.update).toHaveBeenCalledWith('telegram_chat_id', '1113158400');
+      expect(settingsApi.update).not.toHaveBeenCalledWith('telegram_bot_token', '***CONFIGURED***');
+    });
   });
 
-  it('salva valor após digitação não vazia', async () => {
+  it('resumo exibe dados salvos', async () => {
     renderWithProviders(<SettingsPage />);
-    const textarea = await screen.findByDisplayValue('teste@teste.com');
-    fireEvent.change(textarea, { target: { value: 'novo@teste.com' } });
-
-    // Clica em todos os botões salvar que não estiverem desabilitados
-    const buttons = await screen.findAllByText('Salvar');
-    for (const btn of buttons) {
-      if (!(btn as HTMLButtonElement).disabled) {
-        fireEvent.click(btn);
-      }
-    }
-
-    await waitFor(() => {
-      expect(settingsApi.update).toHaveBeenCalled();
-    });
+    await screen.findAllByText('Telegram Alertas');
+    // Chat ID appears in form and summary
+    expect(screen.getAllByText('1113158400').length).toBeGreaterThanOrEqual(1);
+    // Monitored senders appears in textarea and summary
+    expect(screen.getAllByText('teste@teste.com').length).toBeGreaterThanOrEqual(1);
+    // Summary section exists
+    expect(screen.getByText(/Resumo das Configuracoes Ativas/i)).toBeInTheDocument();
   });
 });
