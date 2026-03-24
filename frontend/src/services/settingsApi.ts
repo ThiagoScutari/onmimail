@@ -8,7 +8,9 @@ export const settingsApi = {
   oauthAuthorize: (provider = 'microsoft') =>
     api.get<{ url: string }>(`/oauth/authorize?provider=${provider}`).then((r) => r.data),
   oauthCallback: (code: string, provider = 'microsoft') =>
-    api.post<{ connected: boolean }>('/oauth/callback', { code, provider }).then((r) => r.data),
+    api
+      .post<{ connected: boolean; error?: string }>('/oauth/callback', { code, provider })
+      .then((r) => r.data),
   oauthStatus: (provider = 'microsoft') =>
     api
       .get<{ connected: boolean; provider: string }>(`/oauth/status?provider=${provider}`)

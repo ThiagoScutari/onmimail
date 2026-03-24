@@ -151,7 +151,7 @@ describe('OAuthService', () => {
       expect(mockGetAuthCodeUrl).toHaveBeenCalledWith(
         expect.objectContaining({
           scopes: [
-            'https://outlook.office365.com/IMAP.AccessAsUser.All',
+            'https://outlook.office.com/IMAP.AccessAsUser.All',
             'offline_access',
           ],
           redirectUri: 'http://localhost:5173/settings/oauth/callback',
